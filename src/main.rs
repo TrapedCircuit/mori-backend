@@ -24,6 +24,9 @@ pub struct Cli {
 
     #[clap(long)]
     pub port: u16,
+
+    #[clap(long, default_value = "0")]
+    pub from_height: u32,
 }
 
 #[tokio::main]
@@ -36,12 +39,15 @@ async fn main() {
         aleo_rpc,
         pk,
         port,
+        from_height,
     } = cli;
 
     // Init Mori Aleo
     let pk = PrivateKey::<Testnet3>::from_str(&pk).expect("Invalid private key");
     let (tx, rx) = tokio::sync::mpsc::channel(100);
     let mori = Mori::new(Some(aleo_rpc), pk, tx, ai_dest).expect("Failed to initialize Mori");
+    // set from height
+    mori.set_cur_height(from_height).expect("Failed to set from height");
     let mori = mori.initial(rx);
 
     // Init Mori Rest

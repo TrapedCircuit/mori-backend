@@ -111,7 +111,9 @@ impl<N: Network> Mori<N> {
     }
 
     pub fn execute_program(mut self, mut rx: Receiver<Execution>) -> anyhow::Result<()> {
+        // TODO: error handling
         while let Some(exec) = rx.blocking_recv() {
+            tracing::warn!("received execution: {:?}", exec);
             let (function, inputs) = match exec {
                 Execution::MoveToNext(vote) => {
                     let Vote {
@@ -162,8 +164,7 @@ impl<N: Network> Mori<N> {
             }
         }
 
-        tracing::error!("mori move channel closed");
-        Ok(())
+        anyhow::bail!("mori move channel closed")
     }
 
     pub fn initial(self, rx: Receiver<Execution>) -> Self {
