@@ -59,9 +59,9 @@ pub struct DBMap<K: Serialize + DeserializeOwned, V: Serialize + DeserializeOwne
 }
 
 impl<K: Serialize + DeserializeOwned, V: Serialize + DeserializeOwned> DBMap<K, V> {
-    pub fn insert(&self, key: K, value: V) -> anyhow::Result<()> {
-        let key_bytes = bincode::serialize(&key)?;
-        let value_bytes = bincode::serialize(&value)?;
+    pub fn insert(&self, key: &K, value: &V) -> anyhow::Result<()> {
+        let key_bytes = bincode::serialize(key)?;
+        let value_bytes = bincode::serialize(value)?;
 
         let real_key = [self.prefix.clone(), key_bytes].concat();
 
@@ -70,12 +70,12 @@ impl<K: Serialize + DeserializeOwned, V: Serialize + DeserializeOwned> DBMap<K, 
         Ok(())
     }
 
-    pub fn batch_insert(&self, kvs: Vec<(K, V)>) -> anyhow::Result<()> {
+    pub fn batch_insert(&self, kvs: &Vec<(K, V)>) -> anyhow::Result<()> {
         let mut batch = rocksdb::WriteBatch::default();
 
         for (key, value) in kvs {
-            let key_bytes = bincode::serialize(&key)?;
-            let value_bytes = bincode::serialize(&value)?;
+            let key_bytes = bincode::serialize(key)?;
+            let value_bytes = bincode::serialize(value)?;
 
             let real_key = [self.prefix.clone(), key_bytes].concat();
 
@@ -177,9 +177,9 @@ fn test_rocksdb() {
     let (key2, value2) = ("key2".to_string(), "value2".to_string());
     let (key3, value3) = ("key3".to_string(), "value3".to_string());
 
-    map.insert(key1.clone(), value1.clone()).unwrap();
-    map.insert(key2.clone(), value2.clone()).unwrap();
-    map.insert(key3.clone(), value3.clone()).unwrap();
+    map.insert(&key1, &value1).unwrap();
+    map.insert(&key2, &value2).unwrap();
+    map.insert(&key3, &value3).unwrap();
 
     let all = map.get_all().unwrap();
 
@@ -196,7 +196,7 @@ fn test_batch_op() {
     let (key1, value1) = ("key1".to_string(), "value1".to_string());
     let (key2, value2) = ("key2".to_string(), "value2".to_string());
 
-    map.batch_insert(vec![
+    map.batch_insert(&vec![
         (key1.clone(), value1.clone()),
         (key2.clone(), value2.clone()),
     ])

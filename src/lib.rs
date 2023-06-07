@@ -105,6 +105,7 @@ impl<N: Network> Mori<N> {
                 }
             }
         }
+        self.network_height.insert(&self.network_key, &latest)?;
         tracing::info!("synced aleo block from {} to {}", cur, latest);
         Ok(())
     }
@@ -194,7 +195,7 @@ impl<N: Network> Mori<N> {
                     )?;
                     let record = record.decrypt(&self.vk)?;
                     tracing::info!("got a new record {:?}", record);
-                    self.unspent_records.insert(sn.to_string(), record)?;
+                    self.unspent_records.insert(&sn.to_string(), &record)?;
                 }
             }
         }
@@ -218,7 +219,7 @@ impl<N: Network> Mori<N> {
                             self.tx.blocking_send(Execution::MoveToNext(vote))?;
                         }
 
-                        self.mori_nodes.insert(node_id, node)?;
+                        self.mori_nodes.insert(&node_id, &node)?;
                     }
                 }
             }
@@ -234,7 +235,7 @@ impl<N: Network> Mori<N> {
                 tracing::info!("got a new node id {:?}", node_id);
                 // TODO: ureq request validator
                 let node = self.get_remote_node(node_id.to_string())?;
-                self.mori_nodes.insert(node_id.to_string(), node)?;
+                self.mori_nodes.insert(&node_id.to_string(), &node)?;
             }
         }
 
@@ -249,7 +250,7 @@ impl<N: Network> Mori<N> {
                 tracing::info!("got a new node id {:?}", node_id);
                 // TODO: ureq request validator
                 let node = self.get_remote_node(node_id.to_string())?;
-                self.mori_nodes.insert(node_id.to_string(), node)?;
+                self.mori_nodes.insert(&node_id.to_string(), &node)?;
             }
         }
 
@@ -265,6 +266,11 @@ impl<N: Network> Mori<N> {
     pub fn get_all_nodes(&self) -> anyhow::Result<Vec<(String, GameNode)>> {
         let nodes = self.mori_nodes.get_all()?;
         Ok(nodes)
+    }
+
+    pub fn set_cur_height(&self, height: u32) -> anyhow::Result<()> {
+        self.network_height.insert(&self.network_key.clone(), &height)?;
+        Ok(())
     }
 }
 
