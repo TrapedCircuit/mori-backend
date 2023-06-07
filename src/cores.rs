@@ -30,10 +30,10 @@ impl GameState {
                 _ => panic!("Invalid square value"),
             }
             if i % 8 == 7 {
-                result.push_str("\n");
+                result.push('\n');
             }
         }
-        return result;
+        result
     }
 
     pub fn zero() -> Self {
@@ -50,7 +50,7 @@ impl GameState {
         if square == 0b00 {
             return true;
         }
-        return false;
+        false
     }
 }
 
@@ -108,6 +108,6 @@ impl GameNode {
             self.votes.push(vote);
         }
 
-        return vote_len >= self.valid_mov_cnt / 2;
+        vote_len >= self.valid_mov_cnt / 2
     }
 }

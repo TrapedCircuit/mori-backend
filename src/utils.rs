@@ -21,7 +21,7 @@ pub fn handle_u8_plaintext<N: Network>(plaintext: &Plaintext<N>) -> anyhow::Resu
 
 pub fn handle_field_plaintext<N: Network>(plaintext: &Plaintext<N>) -> anyhow::Result<Field<N>> {
     if let Plaintext::Literal(Literal::Field(v), _) = plaintext {
-        Ok(v.clone())
+        Ok(*v)
     } else {
         anyhow::bail!("invalid field plaintext")
     }
@@ -29,7 +29,7 @@ pub fn handle_field_plaintext<N: Network>(plaintext: &Plaintext<N>) -> anyhow::R
 
 pub fn handle_addr_plaintext<N: Network>(plaintext: &Plaintext<N>) -> anyhow::Result<Address<N>> {
     if let Plaintext::Literal(Literal::Address(v), _) = plaintext {
-        Ok(v.clone())
+        Ok(*v)
     } else {
         anyhow::bail!("invalid address plaintext")
     }

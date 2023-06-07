@@ -47,10 +47,10 @@ impl<N: Network> Mori<N> {
     ) -> anyhow::Result<Self> {
         let aleo_rpc = aleo_rpc.unwrap_or("https://vm.aleo.org/api".to_string());
         let aleo_client = AleoAPIClient::new(&aleo_rpc, ALEO_NETWORK)?;
-        let network_key = format!("{}-{}", aleo_rpc, pk.to_string());
+        let network_key = format!("{}-{}", aleo_rpc, pk);
 
         let vk = ViewKey::try_from(&pk)?;
-        let pm = ProgramManager::new(Some(pk.clone()), None, Some(aleo_client.clone()), None)?;
+        let pm = ProgramManager::new(Some(pk), None, Some(aleo_client.clone()), None)?;
         let filter = TransitionFilter::new()
             .add_program(ProgramID::from_str("mori.aleo")?)
             .add_function("vote".to_string());
@@ -126,18 +126,18 @@ impl<N: Network> Mori<N> {
                     let mock_game_status: u8 = rng.gen_range(0..=3);
 
                     let inputs = vec![
-                        format!("{}field", node_id.to_string()),
-                        format!("{}field", new_node_id.to_string()),
-                        format!("{}u128", mock_new_state.to_string()),
-                        format!("{}u32", mock_valid_pos.to_string()),
-                        format!("{}u8", mock_game_status.to_string()),
+                        format!("{}field", node_id),
+                        format!("{}field", new_node_id),
+                        format!("{}u128", mock_new_state),
+                        format!("{}u32", mock_valid_pos),
+                        format!("{}u8", mock_game_status),
                     ];
                     ("move_to_next", inputs)
                 }
                 Execution::OpenGame => {
                     let mut rng = rand::thread_rng();
                     let node_id = Field::<N>::from_u128(rng.gen());
-                    let inputs = vec![format!("{}field", node_id.to_string())];
+                    let inputs = vec![format!("{}field", node_id)];
                     ("open_game", inputs)
                 }
             };
@@ -189,8 +189,8 @@ impl<N: Network> Mori<N> {
                 if record.1.is_owner(&self.vk) {
                     let (commitment, record) = record;
                     let sn = Record::<N, Ciphertext<N>>::serial_number(
-                        self.pk.clone(),
-                        commitment.clone(),
+                        self.pk,
+                        *commitment,
                     )?;
                     let record = record.decrypt(&self.vk)?;
                     tracing::info!("got a new record {:?}", record);
@@ -203,7 +203,7 @@ impl<N: Network> Mori<N> {
     }
 
     pub fn handle_vote(&self, t: Transition<N>) -> anyhow::Result<()> {
-        if let Some(output) = t.outputs().into_iter().next() {
+        if let Some(output) = t.outputs().iter().next() {
             if let Some(record) = output.record() {
                 if record.1.is_owner(&self.vk) {
                     let (_, record) = record;
@@ -213,7 +213,7 @@ impl<N: Network> Mori<N> {
                     let node = self.mori_nodes.get(&vote.node_id)?;
                     if let Some(node) = node {
                         let node_id = node.node_id.clone();
-                        let mut node = node.clone();
+                        let mut node = node;
                         if node.add_vote(vote.clone()) {
                             self.tx.blocking_send(Execution::MoveToNext(vote))?;
                         }

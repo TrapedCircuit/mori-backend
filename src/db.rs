@@ -208,7 +208,7 @@ fn test_batch_op() {
     assert_eq!(all[0], (key1.clone(), value1));
     assert_eq!(all[1], (key2.clone(), value2));
 
-    map.batch_remove(&vec![key1.clone(), key2.clone()]).unwrap();
+    map.batch_remove(&vec![key1, key2]).unwrap();
 
     let all = map.get_all().unwrap();
 
