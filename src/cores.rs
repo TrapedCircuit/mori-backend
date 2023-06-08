@@ -118,7 +118,6 @@ impl FromStr for GameNode {
     type Err = anyhow::Error;
     fn from_str(s: &str) -> Result<Self, Self::Err> {
         //"{\n  node_id: 25939613864655546608765990709996941590field,\n  state: 7083711853891053158400u128,\n  parent_id: 6291506693248725078901406641668230701639003122863888065466938556813880264799field,\n  node_type: 0u8,\n  game_status: 0u8\n}"
-
         let s = s
             .replace("node_id: ", "\"node_id\": \"")
             .replace("state: ", "\"state\": \"")
@@ -165,7 +164,9 @@ impl FromStr for GameNode {
 
 #[test]
 fn test_game_node_from_str() {
-    let game_node_str = "{\n  node_id: 25939613864655546608765990709996941590field,\n  state: 7083711853891053158400u128,\n  parent_id: 6291506693248725078901406641668230701639003122863888065466938556813880264799field,\n  node_type: 0u8,\n  game_status: 0u8\n}";
+    let game_node_str = "\"{\n  node_id: 25939613864655546608765990709996941590field,\n  state: 7083711853891053158400u128,\n  parent_id: 6291506693248725078901406641668230701639003122863888065466938556813880264799field,\n  node_type: 0u8,\n  game_status: 0u8\n}\"";
+    let game_node_str = game_node_str.trim_matches('\"');
+
     let game_node = GameNode::from_str(game_node_str).unwrap();
     println!("{:?}", game_node);
 }

@@ -17,7 +17,7 @@ snarkvm = "0.11.2"
 aleo-rust = { git = "https://github.com/AleoHQ/aleo" }
 rand = "0.8"
 serde_json = "1"
-ureq = { version = "2.6", features = ["json", "charset"] }
+ureq = { version = "2.6", features = ["json"] }
 clap = { version = "4", features = ["derive"] }
 axum = "0.6"
 
