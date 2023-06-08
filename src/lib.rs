@@ -53,7 +53,7 @@ impl<N: Network> Mori<N> {
         let pm = ProgramManager::new(Some(pk), None, Some(aleo_client.clone()), None)?;
         let filter = TransitionFilter::new()
             .add_program(ProgramID::from_str("mori.aleo")?)
-            .add_function("vote".to_string());
+            .add_program(ProgramID::from_str("credits.aleo")?);
 
         let unspent_records = RocksDB::open_map("unspent_records")?;
         let mori_nodes = RocksDB::open_map("mori_nodes")?;
@@ -192,10 +192,7 @@ impl<N: Network> Mori<N> {
             if let Some(record) = output.record() {
                 if record.1.is_owner(&self.vk) {
                     let (commitment, record) = record;
-                    let sn = Record::<N, Ciphertext<N>>::serial_number(
-                        self.pk,
-                        *commitment,
-                    )?;
+                    let sn = Record::<N, Ciphertext<N>>::serial_number(self.pk, *commitment)?;
                     let record = record.decrypt(&self.vk)?;
                     tracing::info!("got a new record {:?}", record);
                     self.unspent_records.insert(&sn.to_string(), &record)?;
@@ -272,7 +269,8 @@ impl<N: Network> Mori<N> {
     }
 
     pub fn set_cur_height(&self, height: u32) -> anyhow::Result<()> {
-        self.network_height.insert(&self.network_key.clone(), &height)?;
+        self.network_height
+            .insert(&self.network_key.clone(), &height)?;
         Ok(())
     }
 }

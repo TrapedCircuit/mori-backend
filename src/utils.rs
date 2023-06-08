@@ -1,6 +1,6 @@
 use std::ops::Deref;
 
-use aleo_rust::{Network, Plaintext, Literal, Address, Field};
+use aleo_rust::{Address, Field, Literal, Network, Plaintext};
 use snarkvm::prelude::Entry;
 
 pub fn entry_to_plain<N: Network>(e: &Entry<N, Plaintext<N>>) -> anyhow::Result<&Plaintext<N>> {

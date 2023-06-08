@@ -47,7 +47,8 @@ async fn main() {
     let (tx, rx) = tokio::sync::mpsc::channel(100);
     let mori = Mori::new(Some(aleo_rpc), pk, tx, ai_dest).expect("Failed to initialize Mori");
     // set from height
-    mori.set_cur_height(from_height).expect("Failed to set from height");
+    mori.set_cur_height(from_height)
+        .expect("Failed to set from height");
     let mori = mori.initial(rx);
 
     // Init Mori Rest

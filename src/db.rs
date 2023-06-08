@@ -206,7 +206,6 @@ impl<K: Serialize + DeserializeOwned, V: Serialize + DeserializeOwned> DBMap<K, 
     }
 }
 
-
 #[test]
 fn test_rocksdb_all_ops() {
     use rand::Rng;

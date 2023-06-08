@@ -4,7 +4,9 @@ use aleo_rust::{Identifier, Network, Plaintext, Record};
 use anyhow::anyhow;
 use serde::{Deserialize, Serialize};
 
-use crate::utils::{handle_addr_plaintext, handle_field_plaintext, handle_u8_plaintext, entry_to_plain};
+use crate::utils::{
+    entry_to_plain, handle_addr_plaintext, handle_field_plaintext, handle_u8_plaintext,
+};
 
 #[derive(Clone, Copy, Serialize, Deserialize)]
 pub struct GameState(u128);

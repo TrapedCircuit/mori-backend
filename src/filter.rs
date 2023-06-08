@@ -34,10 +34,14 @@ impl<N: Network> TransitionFilter<N> {
             .flat_map(|tx| tx.into_transaction().into_transitions())
             .collect::<Vec<Transition<N>>>();
 
-        ts.into_iter().filter(|t| {
-            let program_id = t.program_id();
-            let function_name = t.function_name().to_string();
-            self.program_ids.contains(program_id) && self.function_names.contains(&function_name)
-        }).collect()
+        ts.into_iter()
+            .filter(|t| {
+                let program_id = t.program_id();
+                let function_name = t.function_name().to_string();
+                tracing::info!("ts program_id: {:?}", program_id);
+                self.program_ids.contains(program_id)
+                    && self.function_names.contains(&function_name)
+            })
+            .collect()
     }
 }
