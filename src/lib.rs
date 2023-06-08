@@ -56,7 +56,7 @@ impl<N: Network> Mori<N> {
 
         let unspent_records: DBMap<String, Record<N, Plaintext<N>>> =
             RocksDB::open_map("unspent_records")?;
-        let mori_nodes = RocksDB::open_map("mori_nodes")?;
+        let mori_nodes = RocksDB::open_map("mori_node")?;
         let network_height = RocksDB::open_map("network")?;
 
         Ok(Self {
