@@ -1,6 +1,6 @@
 use cores::{GameNode, Vote};
 use rand::Rng;
-use snarkvm::synthesizer::{Input, Transition};
+use snarkvm::synthesizer::Transition;
 use std::str::FromStr;
 use tokio::sync::mpsc::{Receiver, Sender};
 use utils::handle_field_plaintext;
@@ -237,15 +237,16 @@ impl<N: Network> Mori<N> {
     }
 
     pub fn handle_open(&self, t: Transition<N>) -> anyhow::Result<()> {
-        let node_id_input = t.inputs().iter().next();
-        tracing::info!("Got a new open game transition: {:?}", node_id_input);
-        if let Some(node_id_input) = node_id_input {
-            if let Input::Public(_, Some(node_id)) = node_id_input {
-                let node_id = handle_field_plaintext(node_id)?;
-                tracing::info!("got a new node id {:?}", node_id);
-                // TODO: ureq request validator
-                let node = self.get_remote_node(node_id.to_string())?;
-                self.mori_nodes.insert(&node_id.to_string(), &node)?;
+        if let Some(finalizes) = t.finalize() {
+            let node_id_final = finalizes.iter().next();
+            tracing::info!("Got a new open game transition: {:?}", node_id_final);
+            if let Some(node_id_value) = node_id_final {
+                if let aleo_rust::Value::Plaintext(node_id) = node_id_value {
+                    let node_id = handle_field_plaintext(node_id)?;
+                    tracing::info!("got a new node id {:?}", node_id);
+                    let node = self.get_remote_node(node_id.to_string())?;
+                    self.mori_nodes.insert(&node_id.to_string(), &node)?;
+                }
             }
         }
 
@@ -253,15 +254,16 @@ impl<N: Network> Mori<N> {
     }
 
     pub fn handle_move(&self, t: Transition<N>) -> anyhow::Result<()> {
-        let node_id_input = t.inputs().get(1);
-        tracing::info!("Got a new move transition: {:?}", node_id_input);
-        if let Some(node_id_input) = node_id_input {
-            if let Input::Public(_, Some(node_id)) = node_id_input {
-                let node_id = handle_field_plaintext(node_id)?;
-                tracing::info!("got a new node id {:?}", node_id);
-                // TODO: ureq request validator
-                let node = self.get_remote_node(node_id.to_string())?;
-                self.mori_nodes.insert(&node_id.to_string(), &node)?;
+        if let Some(finalizes) = t.finalize() {
+            let node_id_final = finalizes.get(1);
+            tracing::info!("Got a new move transition: {:?}", node_id_final);
+            if let Some(node_id_value) = node_id_final {
+                if let aleo_rust::Value::Plaintext(node_id) = node_id_value {
+                    let node_id = handle_field_plaintext(node_id)?;
+                    tracing::info!("got a new node id {:?}", node_id);
+                    let node = self.get_remote_node(node_id.to_string())?;
+                    self.mori_nodes.insert(&node_id.to_string(), &node)?;
+                }
             }
         }
 
