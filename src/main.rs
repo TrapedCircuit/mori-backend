@@ -77,9 +77,16 @@ async fn main() {
 async fn list_nodes<N: Network>(
     State(mori): State<Mori<N>>,
 ) -> anyhow::Result<Json<NodesResponse>, (StatusCode, String)> {
-    let nodes = mori
-        .get_all_nodes()
-        .map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, e.to_string()))?;
+    let nodes = match mori.get_all_nodes() {
+        Ok(nodes) => nodes,
+        Err(e) => {
+            tracing::error!("Failed to get all nodes: {}", e);
+            return Err((
+                StatusCode::INTERNAL_SERVER_ERROR,
+                format!("Failed to get all nodes: {}", e),
+            ));
+        }
+    };
     let nodes = NodesResponse { nodes };
 
     Ok(Json(nodes))
