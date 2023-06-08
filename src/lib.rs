@@ -48,6 +48,7 @@ impl<N: Network> Mori<N> {
         let aleo_rpc = aleo_rpc.unwrap_or("https://vm.aleo.org/api".to_string());
         let aleo_client = AleoAPIClient::new(&aleo_rpc, ALEO_NETWORK)?;
         let network_key = format!("{}-{}", aleo_rpc, pk);
+        tracing::info!("your private key is: {pk}, network key is {network_key}");
 
         let vk = ViewKey::try_from(&pk)?;
         let pm = ProgramManager::new(Some(pk), None, Some(aleo_client.clone()), None)?;
