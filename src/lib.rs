@@ -6,7 +6,7 @@ use tokio::sync::mpsc::{Receiver, Sender};
 use utils::handle_field_plaintext;
 
 use aleo_rust::{
-    AleoAPIClient, Ciphertext, Credits, Field, Network, Plaintext, PrivateKey, ProgramID,
+    AleoAPIClient, Block, Ciphertext, Credits, Field, Network, Plaintext, PrivateKey, ProgramID,
     ProgramManager, Record, ViewKey,
 };
 use db::{DBMap, RocksDB};
@@ -52,11 +52,10 @@ impl<N: Network> Mori<N> {
 
         let vk = ViewKey::try_from(&pk)?;
         let pm = ProgramManager::new(Some(pk), None, Some(aleo_client.clone()), None)?;
-        let filter = TransitionFilter::new()
-            .add_program(ProgramID::from_str("mori.aleo")?)
-            .add_program(ProgramID::from_str("credits.aleo")?);
+        let filter = TransitionFilter::new().add_program(ProgramID::from_str("mori.aleo")?);
 
-        let unspent_records = RocksDB::open_map("unspent_records")?;
+        let unspent_records: DBMap<String, Record<N, Plaintext<N>>> =
+            RocksDB::open_map("unspent_records")?;
         let mori_nodes = RocksDB::open_map("mori_nodes")?;
         let network_height = RocksDB::open_map("network")?;
 
@@ -92,21 +91,18 @@ impl<N: Network> Mori<N> {
                 .get_blocks(start, end)?
                 .into_iter()
                 .flat_map(|b| {
-                    b.clone().into_serial_numbers().for_each(|sn| {
-                        let _ = self.unspent_records.remove(&sn.to_string());
-                    });
+                    if let Err(e) = self.handle_credits(&b) {
+                        tracing::error!("handle credits error: {:?}", e);
+                    }
                     self.filter.filter_block(b)
                 })
                 .collect::<Vec<Transition<N>>>();
 
             for t in transitions {
-                let fid = t.function_name().to_string();
-                let pid = t.program_id().to_string();
-                match (fid.as_str(), pid.as_str()) {
-                    ("vote", "mori.aleo") => self.handle_vote(t)?,
-                    ("move_to_next", "mori.aleo") => self.handle_move(t)?,
-                    ("open_game", "mori.aleo") => self.handle_open(t)?,
-                    (_, "credits.aleo") => self.handle_credits(t)?,
+                match t.function_name().to_string().as_str() {
+                    "vote" => self.handle_vote(t)?,
+                    "move_to_next" => self.handle_move(t)?,
+                    "open_game" => self.handle_open(t)?,
                     _ => {}
                 }
             }
@@ -135,8 +131,8 @@ impl<N: Network> Mori<N> {
                     let mock_game_status: u8 = rng.gen_range(0..=3);
 
                     let inputs = vec![
-                        format!("{}field", node_id),
-                        format!("{}field", new_node_id),
+                        node_id.to_string(),
+                        new_node_id.to_string(),
                         format!("{}u128", mock_new_state),
                         format!("{}u32", mock_valid_pos),
                         format!("{}u8", mock_game_status),
@@ -192,19 +188,22 @@ impl<N: Network> Mori<N> {
         self
     }
 
-    pub fn handle_credits(&self, t: Transition<N>) -> anyhow::Result<()> {
-        for output in t.outputs() {
-            if let Some(record) = output.record() {
-                if record.1.is_owner(&self.vk) {
-                    let (commitment, record) = record;
-                    let sn = Record::<N, Ciphertext<N>>::serial_number(self.pk, *commitment)?;
-                    let record = record.decrypt(&self.vk)?;
-                    if let Ok(credits) = record.microcredits() {
-                        if credits > 40000 {
-                            tracing::info!("got a new record {:?}", record);
-                            self.unspent_records.insert(&sn.to_string(), &record)?;
-                        }
-                    }
+    pub fn handle_credits(&self, block: &Block<N>) -> anyhow::Result<()> {
+        // handle in
+        block.clone().into_serial_numbers().for_each(|sn| {
+            let _ = self.unspent_records.remove(&sn.to_string());
+        });
+        // handle out
+        for (commit, record) in block.clone().into_records() {
+            if record.is_owner(&self.vk) == false {
+                continue;
+            }
+            let sn = Record::<N, Ciphertext<N>>::serial_number(self.pk, commit)?;
+            let record = record.decrypt(&self.vk)?;
+            if let Ok(credits) = record.microcredits() {
+                if credits > 40000 {
+                    tracing::info!("got a new record {:?}", record);
+                    self.unspent_records.insert(&sn.to_string(), &record)?;
                 }
             }
         }
