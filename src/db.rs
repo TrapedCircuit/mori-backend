@@ -1,4 +1,4 @@
-use std::sync::Arc;
+use std::{env::temp_dir, sync::Arc};
 
 use once_cell::sync::OnceCell;
 use serde::{de::DeserializeOwned, Serialize};
@@ -36,6 +36,43 @@ impl RocksDB {
         prefix: &str,
     ) -> anyhow::Result<DBMap<K, V>> {
         let db = Self::open()?;
+
+        let prefix = prefix.as_bytes().to_vec();
+
+        Ok(DBMap {
+            inner: db.inner(),
+            prefix,
+            _marker: std::marker::PhantomData,
+        })
+    }
+
+    pub fn test_open() -> anyhow::Result<Self> {
+        static DB: OnceCell<RocksDB> = OnceCell::new();
+
+        // Retrieve the database.
+        let database = DB
+            .get_or_try_init(|| {
+                // Customize database options.
+                let mut options = rocksdb::Options::default();
+                options.set_compression_type(rocksdb::DBCompressionType::Lz4);
+                let rocksdb = {
+                    options.increase_parallelism(2);
+                    options.create_if_missing(true);
+
+                    Arc::new(rocksdb::DB::open(&options, temp_dir())?)
+                };
+
+                Ok::<_, anyhow::Error>(RocksDB(rocksdb))
+            })?
+            .clone();
+
+        Ok(database)
+    }
+
+    pub fn test_open_map<K: Serialize + DeserializeOwned, V: Serialize + DeserializeOwned>(
+        prefix: &str,
+    ) -> anyhow::Result<DBMap<K, V>> {
+        let db = Self::test_open()?;
 
         let prefix = prefix.as_bytes().to_vec();
 
@@ -169,48 +206,69 @@ impl<K: Serialize + DeserializeOwned, V: Serialize + DeserializeOwned> DBMap<K, 
     }
 }
 
+
 #[test]
-fn test_rocksdb() {
-    let map = RocksDB::open_map::<String, String>("test").unwrap();
+fn test_rocksdb_all_ops() {
+    use rand::Rng;
 
-    let (key1, value1) = ("key1".to_string(), "value1".to_string());
-    let (key2, value2) = ("key2".to_string(), "value2".to_string());
-    let (key3, value3) = ("key3".to_string(), "value3".to_string());
+    let map = RocksDB::test_open_map::<String, String>("test").unwrap();
 
-    map.insert(&key1, &value1).unwrap();
-    map.insert(&key2, &value2).unwrap();
-    map.insert(&key3, &value3).unwrap();
+    let mut rng = rand::thread_rng();
 
-    let all = map.get_all().unwrap();
+    for _ in 0..50 {
+        let batch = rng.gen_range(0..=100);
 
-    assert_eq!(all.len(), 3);
-    assert_eq!(all[0], (key1, value1));
-    assert_eq!(all[1], (key2, value2));
-    assert_eq!(all[2], (key3, value3));
+        // insert
+        let mut kvs = Vec::new();
+        for _ in 0..batch {
+            let key = rng.gen::<u64>().to_string();
+            let value = rng.gen::<u64>().to_string();
+            kvs.push((key, value));
+        }
+        map.batch_insert(&kvs).unwrap();
+
+        // get
+        for (key, value) in &kvs {
+            let got = map.get(key).unwrap().unwrap();
+            assert_eq!(got, *value);
+        }
+
+        // remove
+        let remove_index = rng.gen_range(0..=batch);
+        let remove_vec = kvs[remove_index..]
+            .iter()
+            .map(|(k, _)| k.clone())
+            .collect::<Vec<_>>();
+
+        map.batch_remove(&remove_vec).unwrap();
+        for key in &remove_vec {
+            let got = map.get(key).unwrap();
+            assert!(got.is_none());
+        }
+    }
 }
 
 #[test]
-fn test_batch_op() {
-    let map = RocksDB::open_map::<String, String>("test").unwrap();
+fn test_insert_order() {
+    use rand::Rng;
 
-    let (key1, value1) = ("key1".to_string(), "value1".to_string());
-    let (key2, value2) = ("key2".to_string(), "value2".to_string());
+    let map = RocksDB::test_open_map::<String, String>("test").unwrap();
 
-    map.batch_insert(&vec![
-        (key1.clone(), value1.clone()),
-        (key2.clone(), value2.clone()),
-    ])
-    .unwrap();
+    let mut rng = rand::thread_rng();
 
-    let all = map.get_all().unwrap();
+    let mut kvs = Vec::new();
+    for _ in 0..50 {
+        let key = rng.gen::<u64>().to_string();
+        let value = rng.gen::<u64>().to_string();
+        kvs.push((key, value));
+    }
 
-    assert_eq!(all.len(), 2);
-    assert_eq!(all[0], (key1.clone(), value1));
-    assert_eq!(all[1], (key2.clone(), value2));
+    map.batch_insert(&kvs).unwrap();
 
-    map.batch_remove(&vec![key1, key2]).unwrap();
+    let mut got = map.get_all().unwrap();
 
-    let all = map.get_all().unwrap();
+    kvs.sort_by(|(k1, _), (k2, _)| k1.cmp(k2));
+    got.sort_by(|(k1, _), (k2, _)| k1.cmp(k2));
 
-    assert_eq!(all.len(), 0);
+    assert_eq!(kvs, got);
 }
