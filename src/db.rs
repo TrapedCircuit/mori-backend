@@ -148,6 +148,16 @@ impl<K: Serialize + DeserializeOwned, V: Serialize + DeserializeOwned> DBMap<K, 
         Ok(())
     }
 
+    pub fn remove_all(&self) -> anyhow::Result<()> {
+        let iter = self.inner.prefix_iterator(self.prefix.clone());
+        for item in iter {
+            let (key, _) = item?;
+            self.inner.delete(key)?;
+        }
+
+        Ok(())
+    }
+
     pub fn get_all(&self) -> anyhow::Result<Vec<(K, V)>> {
         let mut result = Vec::new();
         let iter = self.inner.prefix_iterator(self.prefix.clone());
