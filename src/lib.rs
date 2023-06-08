@@ -243,8 +243,8 @@ impl<N: Network> Mori<N> {
             if let Some(node_id_value) = node_id_final {
                 if let aleo_rust::Value::Plaintext(node_id) = node_id_value {
                     let node_id = handle_field_plaintext(node_id)?;
-                    tracing::info!("got a new node id {:?}", node_id);
                     let node = self.get_remote_node(node_id.to_string())?;
+                    tracing::info!("Got a new open game node: {:?}", node);
                     self.mori_nodes.insert(&node_id.to_string(), &node)?;
                 }
             }
@@ -260,8 +260,8 @@ impl<N: Network> Mori<N> {
             if let Some(node_id_value) = node_id_final {
                 if let aleo_rust::Value::Plaintext(node_id) = node_id_value {
                     let node_id = handle_field_plaintext(node_id)?;
-                    tracing::info!("got a new node id {:?}", node_id);
                     let node = self.get_remote_node(node_id.to_string())?;
+                    tracing::info!("Got a new move node: {:?}", node);
                     self.mori_nodes.insert(&node_id.to_string(), &node)?;
                 }
             }
