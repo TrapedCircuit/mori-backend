@@ -56,7 +56,7 @@ impl<N: Network> Mori<N> {
 
         let unspent_records: DBMap<String, Record<N, Plaintext<N>>> =
             RocksDB::open_map("unspent_records")?;
-        let mori_nodes = RocksDB::open_map("mori_node")?;
+        let mori_nodes = RocksDB::open_map("mori_nodes")?;
         let network_height = RocksDB::open_map("network")?;
 
         Ok(Self {
@@ -213,6 +213,7 @@ impl<N: Network> Mori<N> {
     }
 
     pub fn handle_vote(&self, t: Transition<N>) -> anyhow::Result<()> {
+        tracing::info!("Got a vote from {}", t.id());
         if let Some(output) = t.outputs().iter().next() {
             if let Some(record) = output.record() {
                 if record.1.is_owner(&self.vk) {

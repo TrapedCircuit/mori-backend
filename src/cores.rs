@@ -4,11 +4,11 @@ use aleo_rust::{Identifier, Network, Plaintext, Record};
 use anyhow::anyhow;
 use serde::{Deserialize, Serialize};
 
-use crate::utils::{
+use crate::{utils::{
     entry_to_plain, handle_addr_plaintext, handle_field_plaintext, handle_u8_plaintext,
-};
+}, db::RocksDB};
 
-#[derive(Clone, Copy, Debug, Serialize, Deserialize)]
+#[derive(Clone, Copy, Debug, Serialize, Deserialize, PartialEq)]
 pub struct GameState(u128);
 
 impl GameState {
@@ -48,7 +48,7 @@ impl GameState {
     }
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
 pub struct Vote {
     pub sender: String,
     pub node_id: String,
@@ -83,7 +83,7 @@ impl Vote {
     }
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
 pub struct GameNode {
     pub node_id: String,
     pub state: GameState,
@@ -160,5 +160,16 @@ fn test_game_node_from_str() {
     let game_node_str = game_node_str.trim_matches('\"');
 
     let game_node = GameNode::from_str(game_node_str).unwrap();
+
+    let game_node_bin = bincode::serialize(&game_node).unwrap();
+    let new_game_node = bincode::deserialize::<GameNode>(&game_node_bin).unwrap();
+    assert_eq!(game_node, new_game_node);
+
+    let map = RocksDB::test_open_map::<String, GameNode>("test").unwrap();
+    map.insert(&game_node.node_id, &game_node).unwrap();
+    let new_game_node = map.get_all().unwrap().get(0).unwrap().clone().1;
+    assert_eq!(game_node, new_game_node);
+
+
     println!("{:?}", game_node);
 }
