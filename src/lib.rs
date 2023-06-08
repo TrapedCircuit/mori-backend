@@ -183,6 +183,7 @@ impl<N: Network> Mori<N> {
                 tracing::error!("sync error: {:?}", e);
             }
             tracing::info!("Holded Records {:?}", self_clone.unspent_records.get_all());
+            tracing::info!("Holded Nodes {:?}", self_clone.mori_nodes.get_all());
             std::thread::sleep(std::time::Duration::from_secs(15));
         });
 
