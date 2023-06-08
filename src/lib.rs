@@ -183,7 +183,6 @@ impl<N: Network> Mori<N> {
                 tracing::error!("sync error: {:?}", e);
             }
             tracing::info!("Holded Records {:?}", self_clone.unspent_records.get_all());
-            tracing::info!("Holded Nodes {:?}", self_clone.mori_nodes.get_all());
             std::thread::sleep(std::time::Duration::from_secs(15));
         });
 
@@ -247,6 +246,10 @@ impl<N: Network> Mori<N> {
                     let node = self.get_remote_node(node_id.to_string())?;
                     tracing::info!("Got a new open game node: {:?}", node);
                     self.mori_nodes.insert(&node_id.to_string(), &node)?;
+                    let node = self.mori_nodes.get(&node_id.to_string())?;
+                    if let Some(_) = node {
+                        tracing::info!("check get node");
+                    }
                 }
             }
         }
@@ -285,7 +288,7 @@ impl<N: Network> Mori<N> {
     }
 
     pub fn set_cur_height(&self, height: u32) -> anyhow::Result<()> {
-        // TODO:
+        // TODO
         let cur = self.network_height.get(&self.network_key)?.unwrap_or(0);
         if height > cur {
             self.network_height.insert(&self.network_key, &height)?;
