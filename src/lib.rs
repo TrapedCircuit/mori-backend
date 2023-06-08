@@ -182,6 +182,7 @@ impl<N: Network> Mori<N> {
             if let Err(e) = self_clone.sync() {
                 tracing::error!("sync error: {:?}", e);
             }
+            tracing::info!("Holded Records {:?}", self_clone.unspent_records.get_all());
             std::thread::sleep(std::time::Duration::from_secs(15));
         });
 
@@ -237,6 +238,7 @@ impl<N: Network> Mori<N> {
 
     pub fn handle_open(&self, t: Transition<N>) -> anyhow::Result<()> {
         let node_id_input = t.inputs().iter().next();
+        tracing::info!("Got a new open game transition: {:?}", node_id_input);
         if let Some(node_id_input) = node_id_input {
             if let Input::Public(_, Some(node_id)) = node_id_input {
                 let node_id = handle_field_plaintext(node_id)?;
@@ -252,6 +254,7 @@ impl<N: Network> Mori<N> {
 
     pub fn handle_move(&self, t: Transition<N>) -> anyhow::Result<()> {
         let node_id_input = t.inputs().get(1);
+        tracing::info!("Got a new move transition: {:?}", node_id_input);
         if let Some(node_id_input) = node_id_input {
             if let Input::Public(_, Some(node_id)) = node_id_input {
                 let node_id = handle_field_plaintext(node_id)?;
