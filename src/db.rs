@@ -150,11 +150,11 @@ impl<K: Serialize + DeserializeOwned, V: Serialize + DeserializeOwned> DBMap<K, 
 
     pub fn get_all(&self) -> anyhow::Result<Vec<(K, V)>> {
         let mut result = Vec::new();
-
         let iter = self.inner.prefix_iterator(self.prefix.clone());
-
         for item in iter {
+            tracing::info!("1");
             let (key, value) = item?;
+            tracing::info!("2");
             let key = &key[self.prefix.len()..];
             let key = bincode::deserialize(key)?;
             let value = bincode::deserialize(&value)?;

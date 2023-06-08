@@ -228,7 +228,7 @@ impl<N: Network> Mori<N> {
                             self.tx.blocking_send(Execution::MoveToNext(vote))?;
                         }
 
-                        // self.mori_nodes.insert(&node_id, &node)?;
+                        self.mori_nodes.insert(&node_id, &node)?;
                     }
                 }
             }
@@ -245,7 +245,7 @@ impl<N: Network> Mori<N> {
                     let node_id = handle_field_plaintext(node_id)?;
                     let node = self.get_remote_node(node_id.to_string())?;
                     tracing::info!("Got a new open game node: {:?}", node);
-                    // self.mori_nodes.insert(&node_id.to_string(), &node)?;
+                    self.mori_nodes.insert(&node_id.to_string(), &node)?;
                 }
             }
         }
@@ -262,7 +262,7 @@ impl<N: Network> Mori<N> {
                     let node_id = handle_field_plaintext(node_id)?;
                     let node = self.get_remote_node(node_id.to_string())?;
                     tracing::info!("Got a new move node: {:?}", node);
-                    // self.mori_nodes.insert(&node_id.to_string(), &node)?;
+                    self.mori_nodes.insert(&node_id.to_string(), &node)?;
                 }
             }
         }
