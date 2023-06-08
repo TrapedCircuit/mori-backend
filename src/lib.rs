@@ -7,7 +7,7 @@ use utils::handle_field_plaintext;
 
 use aleo_rust::{
     AleoAPIClient, Ciphertext, Field, Network, Plaintext, PrivateKey, ProgramID, ProgramManager,
-    Record, ViewKey,
+    Record, ViewKey, Credits,
 };
 use db::{DBMap, RocksDB};
 use filter::TransitionFilter;
@@ -97,7 +97,6 @@ impl<N: Network> Mori<N> {
             for t in transitions {
                 let fid = t.function_name().to_string();
                 let pid = t.program_id().to_string();
-                tracing::info!("received transition {fid} {pid}");
                 match (fid.as_str(), pid.as_str()) {
                     ("vote", "mori.aleo") => self.handle_vote(t)?,
                     ("move_to_next", "mori.aleo") => self.handle_move(t)?,
@@ -195,8 +194,12 @@ impl<N: Network> Mori<N> {
                     let (commitment, record) = record;
                     let sn = Record::<N, Ciphertext<N>>::serial_number(self.pk, *commitment)?;
                     let record = record.decrypt(&self.vk)?;
-                    tracing::info!("got a new record {:?}", record);
-                    self.unspent_records.insert(&sn.to_string(), &record)?;
+                    if let Ok(credits) = record.microcredits() {
+                        if credits > 40000 {
+                            tracing::info!("got a new record {:?}", record);
+                            self.unspent_records.insert(&sn.to_string(), &record)?;
+                        }
+                    }
                 }
             }
         }
@@ -270,6 +273,7 @@ impl<N: Network> Mori<N> {
     }
 
     pub fn set_cur_height(&self, height: u32) -> anyhow::Result<()> {
+        // TODO:
         let cur = self.network_height.get(&self.network_key)?.unwrap_or(0);
         if height > cur {
             self.network_height.insert(&self.network_key, &height)?;
