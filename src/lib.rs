@@ -17,7 +17,7 @@ pub mod db;
 pub mod filter;
 pub mod utils;
 
-const ALEO_NETWORK: &str = "testnet3";
+pub const ALEO_NETWORK: &str = "testnet3";
 
 #[derive(Clone)]
 pub struct Mori<N: Network> {
@@ -270,8 +270,10 @@ impl<N: Network> Mori<N> {
     }
 
     pub fn set_cur_height(&self, height: u32) -> anyhow::Result<()> {
-        self.network_height
-            .insert(&self.network_key.clone(), &height)?;
+        let cur = self.network_height.get(&self.network_key)?.unwrap_or(0);
+        if height > cur {
+            self.network_height.insert(&self.network_key, &height)?;
+        }
         Ok(())
     }
 }
