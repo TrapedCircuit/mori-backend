@@ -189,7 +189,6 @@ impl<N: Network> Mori<N> {
     }
 
     pub fn handle_credits(&self, t: Transition<N>) -> anyhow::Result<()> {
-        tracing::info!("got a new credits transition {:?}", t);
         for output in t.outputs() {
             if let Some(record) = output.record() {
                 if record.1.is_owner(&self.vk) {

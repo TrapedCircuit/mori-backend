@@ -101,6 +101,7 @@ impl<K: Serialize + DeserializeOwned, V: Serialize + DeserializeOwned> DBMap<K, 
         let value_bytes = bincode::serialize(value)?;
 
         let real_key = [self.prefix.clone(), key_bytes].concat();
+        tracing::error!("real_key: {:?}", real_key);
 
         self.inner.put(real_key, value_bytes)?;
 
