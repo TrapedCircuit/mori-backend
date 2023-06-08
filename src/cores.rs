@@ -113,3 +113,59 @@ impl GameNode {
         vote_len >= self.valid_mov_cnt / 2
     }
 }
+
+impl FromStr for GameNode {
+    type Err = anyhow::Error;
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
+        //"{\n  node_id: 25939613864655546608765990709996941590field,\n  state: 7083711853891053158400u128,\n  parent_id: 6291506693248725078901406641668230701639003122863888065466938556813880264799field,\n  node_type: 0u8,\n  game_status: 0u8\n}"
+
+        let s = s
+            .replace("node_id: ", "\"node_id\": \"")
+            .replace("state: ", "\"state\": \"")
+            .replace("parent_id: ", "\"parent_id\": \"")
+            .replace("node_type", "\"node_type\"")
+            .replace("game_status", "\"game_status\"")
+            .replace("field", "field\"")
+            .replace("u128", "\"")
+            .replace("u8", "")
+            .replace("\n", "");
+
+        let game_node_value = serde_json::from_str::<serde_json::Value>(&s)?;
+        let node_id = game_node_value["node_id"]
+            .as_str()
+            .ok_or(anyhow!("Invalid node_id"))?;
+        let state = game_node_value["state"]
+            .as_str()
+            .ok_or(anyhow!("Invalid state"))?;
+        let parent_id = game_node_value["parent_id"]
+            .as_str()
+            .ok_or(anyhow!("Invalid parent_id"))?;
+        let node_type = game_node_value["node_type"]
+            .as_u64()
+            .ok_or(anyhow!("Invalid node_type"))?;
+        let game_status = game_node_value["game_status"]
+            .as_u64()
+            .ok_or(anyhow!("Invalid game_status"))?;
+
+        // TODO: remove this mock
+        let mock_valid = 4;
+        let votes = vec![];
+
+        Ok(Self {
+            node_id: node_id.to_string(),
+            state: GameState(state.parse::<u128>()?),
+            parent_id: parent_id.to_string(),
+            node_type: node_type as u8,
+            game_status: game_status as u8,
+            valid_mov_cnt: mock_valid,
+            votes,
+        })
+    }
+}
+
+#[test]
+fn test_game_node_from_str() {
+    let game_node_str = "{\n  node_id: 25939613864655546608765990709996941590field,\n  state: 7083711853891053158400u128,\n  parent_id: 6291506693248725078901406641668230701639003122863888065466938556813880264799field,\n  node_type: 0u8,\n  game_status: 0u8\n}";
+    let game_node = GameNode::from_str(game_node_str).unwrap();
+    println!("{:?}", game_node);
+}
