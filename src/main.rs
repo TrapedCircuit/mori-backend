@@ -77,7 +77,9 @@ async fn main() {
 async fn list_nodes<N: Network>(
     State(mori): State<Mori<N>>,
 ) -> anyhow::Result<Json<NodesResponse>, (StatusCode, String)> {
-    let nodes = match mori.get_all_nodes().await {
+    let records = mori.get_all_record().expect("dsad");
+    tracing::info!("records: {:?}", records);
+    let nodes = match mori.get_all_nodes() {
         Ok(nodes) => nodes,
         Err(e) => {
             tracing::error!("Failed to get all nodes: {}", e);

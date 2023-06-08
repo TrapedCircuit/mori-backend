@@ -1,8 +1,8 @@
 use cores::{GameNode, Vote};
 use rand::Rng;
 use snarkvm::synthesizer::Transition;
-use std::{str::FromStr, sync::Arc};
-use tokio::sync::{mpsc::{Receiver, Sender}, Mutex};
+use std::str::FromStr;
+use tokio::sync::mpsc::{Receiver, Sender};
 use utils::handle_field_plaintext;
 
 use aleo_rust::{
@@ -35,7 +35,7 @@ pub struct Mori<N: Network> {
 
     network_height: DBMap<String, u32>,
     unspent_records: DBMap<String, Record<N, Plaintext<N>>>, // for execution gas
-    mori_nodes: Arc<Mutex<DBMap<String, GameNode>>>,                     // <node_id, node>
+    mori_nodes: DBMap<String, GameNode>,                     // <node_id, node>
 }
 
 impl<N: Network> Mori<N> {
@@ -71,7 +71,7 @@ impl<N: Network> Mori<N> {
             pk,
             vk,
             unspent_records,
-            mori_nodes: Arc::new(Mutex::new(mori_nodes)),
+            mori_nodes,
             network_height,
             network_key,
         })
@@ -220,7 +220,7 @@ impl<N: Network> Mori<N> {
                     let record = record.decrypt(&self.vk)?;
                     let vote = Vote::try_from_record(record)?;
 
-                    let node = self.mori_nodes.blocking_lock().get(&vote.node_id)?;
+                    let node = self.mori_nodes.get(&vote.node_id)?;
                     if let Some(node) = node {
                         let node_id = node.node_id.clone();
                         let mut node = node;
@@ -228,7 +228,7 @@ impl<N: Network> Mori<N> {
                             self.tx.blocking_send(Execution::MoveToNext(vote))?;
                         }
 
-                        self.mori_nodes.blocking_lock().insert(&node_id, &node)?;
+                        self.mori_nodes.insert(&node_id, &node)?;
                     }
                 }
             }
@@ -245,7 +245,7 @@ impl<N: Network> Mori<N> {
                     let node_id = handle_field_plaintext(node_id)?;
                     let node = self.get_remote_node(node_id.to_string())?;
                     tracing::info!("Got a new open game node: {:?}", node);
-                    self.mori_nodes.blocking_lock().insert(&node_id.to_string(), &node)?;
+                    self.mori_nodes.insert(&node_id.to_string(), &node)?;
                 }
             }
         }
@@ -262,7 +262,7 @@ impl<N: Network> Mori<N> {
                     let node_id = handle_field_plaintext(node_id)?;
                     let node = self.get_remote_node(node_id.to_string())?;
                     tracing::info!("Got a new move node: {:?}", node);
-                    self.mori_nodes.blocking_lock().insert(&node_id.to_string(), &node)?;
+                    self.mori_nodes.insert(&node_id.to_string(), &node)?;
                 }
             }
         }
@@ -278,9 +278,14 @@ impl<N: Network> Mori<N> {
         Ok(node)
     }
 
-    pub async fn get_all_nodes(&self) -> anyhow::Result<Vec<(String, GameNode)>> {
-        let nodes = self.mori_nodes.lock().await.get_all()?;
+    pub fn get_all_nodes(&self) -> anyhow::Result<Vec<(String, GameNode)>> {
+        let nodes = self.mori_nodes.get_all()?;
         Ok(nodes)
+    }
+
+    pub fn get_all_record(&self) -> anyhow::Result<Vec<(String, Record<N, Plaintext<N>>)>> {
+        let records = self.unspent_records.get_all()?;
+        Ok(records)
     }
 
     pub fn set_cur_height(&self, height: u32) -> anyhow::Result<()> {
