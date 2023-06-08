@@ -92,15 +92,16 @@ impl<N: Network> Mori<N> {
                 .into_iter()
                 .flat_map(|b| self.filter.filter_block(b))
                 .collect::<Vec<Transition<N>>>();
-            let credits_id = ProgramID::<N>::from_str("credits.aleo")?;
-            let mori_id = ProgramID::<N>::from_str("mori.aleo")?;
 
             for t in transitions {
-                match (t.function_name().to_string().as_str(), t.program_id()) {
-                    ("vote", pid) if *pid == mori_id => self.handle_vote(t)?,
-                    ("move_to_next", pid) if *pid == mori_id => self.handle_move(t)?,
-                    ("open_game", pid) if *pid == mori_id => self.handle_open(t)?,
-                    (_, pid) if *pid == credits_id => self.handle_credits(t)?,
+                let fid = t.function_name().to_string();
+                let pid = t.program_id().to_string();
+                tracing::info!("received transition {fid} {pid}");
+                match (fid.as_str(), pid.as_str()) {
+                    ("vote", "mori.aleo") => self.handle_vote(t)?,
+                    ("move_to_next", "mori.aleo") => self.handle_move(t)?,
+                    ("open_game", "mori.aleo") => self.handle_open(t)?,
+                    (_, "credits.aleo") => self.handle_credits(t)?,
                     _ => {}
                 }
             }
