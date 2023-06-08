@@ -6,8 +6,8 @@ use tokio::sync::mpsc::{Receiver, Sender};
 use utils::handle_field_plaintext;
 
 use aleo_rust::{
-    AleoAPIClient, Ciphertext, Field, Network, Plaintext, PrivateKey, ProgramID, ProgramManager,
-    Record, ViewKey, Credits,
+    AleoAPIClient, Ciphertext, Credits, Field, Network, Plaintext, PrivateKey, ProgramID,
+    ProgramManager, Record, ViewKey,
 };
 use db::{DBMap, RocksDB};
 use filter::TransitionFilter;
@@ -91,7 +91,12 @@ impl<N: Network> Mori<N> {
                 .aleo_client
                 .get_blocks(start, end)?
                 .into_iter()
-                .flat_map(|b| self.filter.filter_block(b))
+                .flat_map(|b| {
+                    b.clone().into_serial_numbers().for_each(|sn| {
+                        let _ = self.unspent_records.remove(&sn.to_string());
+                    });
+                    self.filter.filter_block(b)
+                })
                 .collect::<Vec<Transition<N>>>();
 
             for t in transitions {
