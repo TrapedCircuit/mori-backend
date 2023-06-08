@@ -8,16 +8,8 @@ use crate::utils::{
     entry_to_plain, handle_addr_plaintext, handle_field_plaintext, handle_u8_plaintext,
 };
 
-#[derive(Clone, Copy, Serialize, Deserialize)]
+#[derive(Clone, Copy, Debug, Serialize, Deserialize)]
 pub struct GameState(u128);
-
-impl std::fmt::Debug for GameState {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        f.debug_struct("GameState")
-            .field("inner", &self.pretty())
-            .finish()
-    }
-}
 
 impl GameState {
     fn pretty(&self) -> String {
@@ -127,7 +119,7 @@ impl FromStr for GameNode {
             .replace("field", "field\"")
             .replace("u128", "\"")
             .replace("u8", "")
-            .replace("\n", "");
+            .replace("\\n", ""); //TODO: use a better way to handle it
 
         let game_node_value = serde_json::from_str::<serde_json::Value>(&s)?;
         let node_id = game_node_value["node_id"]
