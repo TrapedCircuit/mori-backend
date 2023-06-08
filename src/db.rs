@@ -155,6 +155,8 @@ impl<K: Serialize + DeserializeOwned, V: Serialize + DeserializeOwned> DBMap<K, 
             tracing::info!("1");
             let (key, value) = item?;
             tracing::info!("2");
+            tracing::info!("{key:?}");
+            tracing::info!("{value:?}");
             let key = &key[self.prefix.len()..];
             let key = bincode::deserialize(key)?;
             let value = bincode::deserialize(&value)?;
