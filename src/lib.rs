@@ -273,7 +273,8 @@ impl<N: Network> Mori<N> {
     pub fn get_remote_node(&self, node_id: String) -> anyhow::Result<GameNode> {
         let path = format!("{}/testnet3/mori/node/{}", self.aleo_rpc, node_id);
         let resp = ureq::get(&path).call()?.into_string()?;
-        let node = GameNode::from_str(&resp)?;
+        let node_str = resp.trim_matches('\"');
+        let node = GameNode::from_str(node_str)?;
         Ok(node)
     }
 
