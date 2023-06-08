@@ -282,7 +282,7 @@ impl<N: Network> Mori<N> {
         Ok(node)
     }
 
-    pub fn get_all_nodes(&self) -> anyhow::Result<Vec<(String, GameNode)>> {
+    pub async fn get_all_nodes(&self) -> anyhow::Result<Vec<(String, GameNode)>> {
         let nodes = self.mori_nodes.get_all()?;
         Ok(nodes)
     }
