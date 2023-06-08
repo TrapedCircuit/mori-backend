@@ -81,12 +81,12 @@ impl<N: Network> Mori<N> {
     pub fn sync(&self) -> anyhow::Result<()> {
         let cur = self.network_height.get(&self.network_key)?.unwrap_or(0);
         let latest = self.aleo_client.latest_height()?;
-        tracing::info!("syncing aleo block from {} to {}", cur, latest);
+        tracing::debug!("Requesting aleo blocks from {} to {}", cur, latest);
         const BATCH_SIZE: usize = 45;
 
         for start in (cur..latest).step_by(BATCH_SIZE) {
             let end = (start + BATCH_SIZE as u32).min(latest);
-            tracing::warn!("fetching aleo blocks from {} to {}", start, end);
+            tracing::warn!("Fetched aleo blocks from {} to {}", start, end);
             let transitions = self
                 .aleo_client
                 .get_blocks(start, end)?
@@ -107,7 +107,7 @@ impl<N: Network> Mori<N> {
             }
         }
         self.network_height.insert(&self.network_key, &latest)?;
-        tracing::info!("synced aleo block from {} to {}", cur, latest);
+        tracing::info!("Synced aleo blocks from {} to {}", cur, latest);
         Ok(())
     }
 
