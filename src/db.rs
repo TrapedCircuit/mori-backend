@@ -151,17 +151,16 @@ impl<K: Serialize + DeserializeOwned, V: Serialize + DeserializeOwned> DBMap<K, 
 
     pub fn get_all(&self) -> anyhow::Result<Vec<(K, V)>> {
         let mut result = Vec::new();
-        tracing::info!("prefix: {prefix:?}", prefix = self.prefix);
         let iter = self.inner.prefix_iterator(self.prefix.clone());
         for item in iter {
             let (key, value) = item?;
-            tracing::info!("key: {key:?}");
-            tracing::info!("value: {value:?}");
-            let key = &key[self.prefix.len()..];
-            let key = bincode::deserialize(key)?;
-            let value = bincode::deserialize(&value)?;
+            if key.starts_with(&self.prefix) {
+                let key = &key[self.prefix.len()..];
+                let key = bincode::deserialize(key)?;
+                let value = bincode::deserialize(&value)?;
 
-            result.push((key, value));
+                result.push((key, value));
+            }
         }
 
         Ok(result)
@@ -184,18 +183,20 @@ impl<K: Serialize + DeserializeOwned, V: Serialize + DeserializeOwned> DBMap<K, 
     pub fn pop_front(&self) -> anyhow::Result<Option<(K, V)>> {
         let mut iter = self.inner.prefix_iterator(self.prefix.clone());
 
-        if let Some(item) = iter.next() {
+        while let Some(item) = iter.next() {
             let (key, value) = item?;
-            let key = &key[self.prefix.len()..];
-            let key = bincode::deserialize(key)?;
-            let value = bincode::deserialize(&value)?;
+            if key.starts_with(&self.prefix) {
+                let key = &key[self.prefix.len()..];
+                let key = bincode::deserialize(key)?;
+                let value = bincode::deserialize(&value)?;
 
-            self.remove(&key)?;
+                self.remove(&key)?;
 
-            Ok(Some((key, value)))
-        } else {
-            Ok(None)
+                return Ok(Some((key, value)));
+            }
         }
+
+        Ok(None)
     }
 
     pub fn contain(&self, key: &K) -> anyhow::Result<bool> {
