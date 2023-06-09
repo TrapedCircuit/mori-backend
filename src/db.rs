@@ -148,25 +148,15 @@ impl<K: Serialize + DeserializeOwned, V: Serialize + DeserializeOwned> DBMap<K, 
         Ok(())
     }
 
-    pub fn remove_all(&self) -> anyhow::Result<()> {
-        let iter = self.inner.prefix_iterator(self.prefix.clone());
-        for item in iter {
-            let (key, _) = item?;
-            self.inner.delete(key)?;
-        }
-
-        Ok(())
-    }
 
     pub fn get_all(&self) -> anyhow::Result<Vec<(K, V)>> {
         let mut result = Vec::new();
+        tracing::info!("prefix: {prefix:?}", prefix = self.prefix);
         let iter = self.inner.prefix_iterator(self.prefix.clone());
         for item in iter {
-            tracing::info!("1");
             let (key, value) = item?;
-            tracing::info!("2");
-            tracing::info!("{key:?}");
-            tracing::info!("{value:?}");
+            tracing::info!("key: {key:?}");
+            tracing::info!("value: {value:?}");
             let key = &key[self.prefix.len()..];
             let key = bincode::deserialize(key)?;
             let value = bincode::deserialize(&value)?;
