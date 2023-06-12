@@ -119,7 +119,6 @@ impl<N: Network> Mori<N> {
     }
 
     pub fn execute_program(mut self, mut rx: Receiver<Execution>) -> anyhow::Result<()> {
-
         let mut handler = move |exec| {
             tracing::warn!("received execution: {:?}", exec);
             let (function, inputs) = match exec {
@@ -226,16 +225,13 @@ impl<N: Network> Mori<N> {
                     if let Some(node) = node {
                         let node_id = node.node_id;
                         let mut node = node;
-                        // node must be a leaf node and game status must be 0
-                        if node.add_vote(vote.clone()) {
-                            if node.game_status == 0 && node.node_type == 0 {
-                                let movs = self.move_to_next_remote(vote.node_id)?;
-                                for mov in movs {
-                                    self.tx.blocking_send(Execution::MoveToNext(mov))?;
-                                }
+
+                        if node.check_and_add_vote(vote.clone()) {
+                            let movs = self.move_to_next_remote(node.clone())?;
+                            for mov in movs {
+                                self.tx.blocking_send(Execution::MoveToNext(mov))?;
                             }
                         }
-
                         self.mori_nodes.insert(&node_id, &node)?;
                     }
                 }
@@ -291,10 +287,8 @@ impl<N: Network> Mori<N> {
         Ok(node_resp)
     }
 
-    pub fn move_to_next_remote(&self, node_id: u128) -> anyhow::Result<Vec<RestResponse>> {
+    pub fn move_to_next_remote(&self, node: GameNode) -> anyhow::Result<Vec<RestResponse>> {
         let dest = format!("{}/api/nodes", self.ai_dest);
-        let node = self.mori_nodes.get(&node_id)?;
-        let node = node.ok_or(anyhow::anyhow!("node not found"))?;
         let req = MovRequest::from_node(node);
 
         tracing::info!("move to next req {}", ureq::json!(req));

@@ -128,13 +128,13 @@ pub struct GameNode {
 }
 
 impl GameNode {
-    pub fn add_vote(&mut self, vote: Vote) -> bool {
+    pub fn check_and_add_vote(&mut self, vote: Vote) -> bool {
         let vote_len = (self.votes.len() + 1) as u32;
         if vote_len <= self.valid_cnt / 2 {
             self.votes.push(vote);
         }
 
-        vote_len >= self.valid_cnt / 2
+        (vote_len >= self.valid_cnt / 2) && self.game_status == 0 && self.node_type == 0
     }
 }
 
@@ -293,4 +293,31 @@ fn test_game_state_from_vec_i8() {
     assert_eq!(game_state_vec_i8, to_vec);
 
     println!("{}", game_state.pretty());
+}
+
+
+#[test]
+fn test_game_node_to_req() {
+    let game_node_str = "\"{\n  node_id: 1u128,\n  state: 7083711853891053158400u128,\n  parent_id: 0u128,\n  node_type: 0u8,\n  game_status: 0i8,\n  valid_cnt: 4u32\n}\"";
+    let game_node_str = game_node_str.trim_matches('\"');
+
+    let mut game_node = GameNode::from_str(game_node_str).unwrap();
+
+    let vote1 = Vote {
+        mov: 26,
+        sender: "0x123".to_string(),
+        node_id: 1,
+    };
+
+    let vote2 = Vote {
+        mov: 19,
+        sender: "0x456".to_string(),
+        node_id: 1,
+    };
+
+    game_node.check_and_add_vote(vote1);
+    game_node.check_and_add_vote(vote2);
+
+    let mov_req = MovRequest::from_node(game_node);
+    println!("{:?}", mov_req);
 }
