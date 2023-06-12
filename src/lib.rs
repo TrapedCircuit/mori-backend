@@ -19,6 +19,7 @@ pub mod filter;
 pub mod utils;
 
 pub const ALEO_NETWORK: &str = "testnet3";
+pub const ALEO_CONTRACT: &str = "mori.aleo";
 
 #[derive(Clone)]
 pub struct Mori<N: Network> {
@@ -154,7 +155,7 @@ impl<N: Network> Mori<N> {
                 .ok_or(anyhow::anyhow!("no unspent record for execution gas"))?;
 
             let result = self.pm.execute_program(
-                "mori.aleo",
+                ALEO_CONTRACT,
                 function,
                 inputs.iter(),
                 40000,
@@ -292,9 +293,12 @@ impl<N: Network> Mori<N> {
 
     pub fn get_remote_node(&self, node_id: u128) -> anyhow::Result<GameNode> {
         let path = format!("{}/testnet3/mori/node/{}", self.aleo_rpc, node_id);
+        let ai_path = format!("{}/api/nodes/{}", self.ai_dest, node_id);
         let resp = ureq::get(&path).call()?.into_string()?;
+        let ai_resp = ureq::get(&ai_path).call()?.into_json::<RestResponse>()?;
         let node_str = resp.trim_matches('\"');
-        let node = GameNode::from_str(node_str)?;
+        let mut node = GameNode::from_str(node_str)?;
+        node.update_valid_movs(ai_resp.valid_moves);
         Ok(node)
     }
 
@@ -314,12 +318,31 @@ impl<N: Network> Mori<N> {
 
         tracing::info!("move to next req {}", ureq::json!(req));
 
-        let resp = ureq::post(&dest)
+        let resp: Vec<RestResponse> = ureq::post(&dest)
             .set("Authorization", &self.ai_token)
             .send_json(ureq::json!(req))?
             .into_json()?;
         tracing::info!("move to next resp {:?}", resp);
-        // TODO: handle mov 64
+
+        // TODO: mov = 64
+        let resp = resp
+            .into_iter()
+            .map(|m| {
+                let mut resp = m;
+                while resp.is_pass() {
+                    let req = MovRequest::pass(resp.node_id);
+                    if let Ok(r) = ureq::post(&dest)
+                        .set("Authorization", &self.ai_token)
+                        .send_json(ureq::json!(req))
+                    {
+                        if let Ok(r) = r.into_json() {
+                            resp = r;
+                        }
+                    }
+                }
+                resp
+            })
+            .collect();
 
         Ok(resp)
     }

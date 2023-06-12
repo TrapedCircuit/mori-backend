@@ -124,17 +124,26 @@ pub struct GameNode {
     pub game_status: u8,
     pub valid_cnt: u32,
 
+    pub valid_movs: Vec<u8>,
     pub votes: Vec<Vote>,
 }
 
 impl GameNode {
     pub fn check_and_add_vote(&mut self, vote: Vote) -> bool {
+        // check mov valid
+        if !self.valid_movs.contains(&vote.mov) {
+            return false;
+        }
+        // check vote len
         let vote_len = (self.votes.len() + 1) as u32;
         if vote_len <= self.valid_cnt / 2 {
             self.votes.push(vote);
         }
 
         (vote_len >= self.valid_cnt / 2) && self.game_status == 0 && self.node_type == 0
+    }
+    pub fn update_valid_movs(&mut self, movs: Vec<u8>) {
+        self.valid_movs = movs;
     }
 }
 
@@ -177,6 +186,7 @@ impl FromStr for GameNode {
             .ok_or(anyhow!("Invalid valid_cnt"))?;
 
         let votes = vec![];
+        let valid_movs = vec![];
 
         Ok(Self {
             node_id: node_id.parse::<u128>()?,
@@ -185,6 +195,7 @@ impl FromStr for GameNode {
             node_type: node_type as u8,
             game_status: game_status as u8,
             valid_cnt: valid_cnt as u32,
+            valid_movs,
             votes,
         })
     }
@@ -216,12 +227,30 @@ pub struct RestResponse {
     pub ai_move: Option<u8>,
 }
 
+impl RestResponse {
+    pub fn is_pass(&self) -> bool {
+        self.valid_moves == vec![64]
+    }
+}
+
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct MovRequest {
     #[serde(rename = "parentId")]
     parent_id: u128,
 
     votes: Vec<Votes>,
+}
+
+impl MovRequest {
+    pub fn pass(node_id: u128) -> Self {
+        Self {
+            parent_id: node_id,
+            votes: vec![Votes {
+                mov: 64,
+                addresses: vec![],
+            }],
+        }
+    }
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
