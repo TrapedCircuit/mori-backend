@@ -295,7 +295,6 @@ fn test_game_state_from_vec_i8() {
     println!("{}", game_state.pretty());
 }
 
-
 #[test]
 fn test_game_node_to_req() {
     let game_node_str = "\"{\n  node_id: 1u128,\n  state: 7083711853891053158400u128,\n  parent_id: 0u128,\n  node_type: 0u8,\n  game_status: 0i8,\n  valid_cnt: 4u32\n}\"";
