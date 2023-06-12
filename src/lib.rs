@@ -219,6 +219,7 @@ impl<N: Network> Mori<N> {
                 if record.1.is_owner(&self.vk) {
                     let (_, record) = record;
                     let record = record.decrypt(&self.vk)?;
+                    tracing::info!("Got a vote record {}", record);
                     let vote = Vote::try_from_record(record)?;
 
                     let node = self.mori_nodes.get(&vote.node_id)?;
