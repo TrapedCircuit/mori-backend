@@ -39,8 +39,8 @@ impl GameState {
         for i in 0..64 {
             let square = match vec[i] {
                 0 => 0b00,
-                -1 => 0b01,
-                1 => 0b10,
+                -1 => 0b10,
+                1 => 0b01,
                 _ => panic!("Invalid square value"),
             };
             result |= square << (2 * i);
@@ -321,6 +321,16 @@ fn test_game_state_from_vec_i8() {
     let to_vec = game_state.to_vec_i8();
     assert_eq!(game_state_vec_i8, to_vec);
 
+    println!("{}", game_state.pretty());
+}
+
+#[test]
+fn test_game_state_pretty() {
+    let game_state = GameState(7083711853891053158400);
+    println!("{}", game_state.pretty());
+    let game_state = GameState(6198286153301259976704);
+    println!("{}", game_state.pretty());
+    let game_state = GameState(6198295159950758903808);
     println!("{}", game_state.pretty());
 }
 
