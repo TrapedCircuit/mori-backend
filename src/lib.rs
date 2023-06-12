@@ -89,6 +89,18 @@ impl<N: Network> Mori<N> {
         tracing::debug!("Requesting aleo blocks from {} to {}", cur, latest);
         const BATCH_SIZE: usize = 45;
 
+        let ts_handler = move |transitions: Vec<Transition<N>>| {
+            for t in transitions {
+                match t.function_name().to_string().as_str() {
+                    "vote" => self.handle_vote(t)?,
+                    "move_to_next" => self.handle_move(t)?,
+                    "open_game" => self.handle_open(t)?,
+                    _ => {}
+                }
+            }
+            Ok::<_, anyhow::Error>(())
+        };
+
         for start in (cur..latest).step_by(BATCH_SIZE) {
             let end = (start + BATCH_SIZE as u32).min(latest);
             tracing::warn!("Fetched aleo blocks from {} to {}", start, end);
@@ -103,16 +115,11 @@ impl<N: Network> Mori<N> {
                     self.filter.filter_block(b)
                 })
                 .collect::<Vec<Transition<N>>>();
-
-            for t in transitions {
-                match t.function_name().to_string().as_str() {
-                    "vote" => self.handle_vote(t)?,
-                    "move_to_next" => self.handle_move(t)?,
-                    "open_game" => self.handle_open(t)?,
-                    _ => {}
-                }
+            if let Err(e) = ts_handler(transitions) {
+                tracing::error!("handle transitions error: {:?}", e);
             }
         }
+
         self.network_height.insert(&self.network_key, &latest)?;
         tracing::info!("Synced aleo blocks from {} to {}", cur, latest);
         Ok(())
@@ -257,13 +264,26 @@ impl<N: Network> Mori<N> {
 
     pub fn handle_move(&self, t: Transition<N>) -> anyhow::Result<()> {
         if let Some(finalizes) = t.finalize() {
+            let parent_id_final = finalizes.get(0);
             let node_id_final = finalizes.get(1);
             tracing::info!("Got a new move transition: {:?}", node_id_final);
+            // update new_node_id
             if let Some(aleo_rust::Value::Plaintext(node_id)) = node_id_final {
                 let node_id = handle_u128_plaintext(node_id)?;
                 let node = self.get_remote_node(node_id)?;
                 tracing::info!("Got a new move node: {:?}", node);
                 self.mori_nodes.insert(&node_id, &node)?;
+            }
+            // update parent_id
+            if let Some(aleo_rust::Value::Plaintext(parent_id)) = parent_id_final {
+                let parent_id = handle_u128_plaintext(parent_id)?;
+                let node = self.mori_nodes.get(&parent_id)?;
+                if let Some(node) = node {
+                    let mut node = node;
+                    // to internal node
+                    node.node_type = 1;
+                    self.mori_nodes.insert(&parent_id, &node)?;
+                }
             }
         }
 
