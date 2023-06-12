@@ -295,7 +295,10 @@ impl<N: Network> Mori<N> {
         let path = format!("{}/testnet3/mori/node/{}", self.aleo_rpc, node_id);
         let ai_path = format!("{}/api/nodes/{}", self.ai_dest, node_id);
         let resp = ureq::get(&path).call()?.into_string()?;
-        let ai_resp = ureq::get(&ai_path).call()?.into_json::<RestResponse>()?;
+        let ai_resp = ureq::get(&ai_path)
+            .set("Authorization", &self.ai_token)
+            .call()?
+            .into_json::<RestResponse>()?;
         let node_str = resp.trim_matches('\"');
         let mut node = GameNode::from_str(node_str)?;
         node.update_valid_movs(ai_resp.valid_moves);
@@ -330,6 +333,7 @@ impl<N: Network> Mori<N> {
             .map(|m| {
                 let mut resp = m;
                 while resp.is_pass() {
+                    tracing::info!("the mov {resp:?} is pass");
                     let req = MovRequest::pass(resp.node_id);
                     if let Ok(r) = ureq::post(&dest)
                         .set("Authorization", &self.ai_token)
