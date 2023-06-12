@@ -226,10 +226,13 @@ impl<N: Network> Mori<N> {
                     if let Some(node) = node {
                         let node_id = node.node_id;
                         let mut node = node;
+                        // node must be a leaf node and game status must be 0
                         if node.add_vote(vote.clone()) {
-                            let movs = self.move_to_next_remote(vote.node_id)?;
-                            for mov in movs {
-                                self.tx.blocking_send(Execution::MoveToNext(mov))?;
+                            if node.game_status == 0 && node.node_type == 0 {
+                                let movs = self.move_to_next_remote(vote.node_id)?;
+                                for mov in movs {
+                                    self.tx.blocking_send(Execution::MoveToNext(mov))?;
+                                }
                             }
                         }
 
@@ -293,6 +296,8 @@ impl<N: Network> Mori<N> {
         let node = self.mori_nodes.get(&node_id)?;
         let node = node.ok_or(anyhow::anyhow!("node not found"))?;
         let req = MovRequest::from_node(node);
+
+        tracing::info!("move to next req {}", ureq::json!(req));
 
         let resp = ureq::post(&dest)
             .set("Authorization", &self.ai_token)
