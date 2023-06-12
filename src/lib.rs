@@ -304,6 +304,7 @@ impl<N: Network> Mori<N> {
             .set("Authorization", &self.ai_token)
             .call()?
             .into_json()?;
+        tracing::info!("open game remote resp {:?}", node_resp);
         Ok(node_resp)
     }
 
@@ -317,7 +318,7 @@ impl<N: Network> Mori<N> {
             .set("Authorization", &self.ai_token)
             .send_json(ureq::json!(req))?
             .into_json()?;
-
+        tracing::info!("move to next resp {:?}", resp);
         // TODO: handle mov 64
 
         Ok(resp)
