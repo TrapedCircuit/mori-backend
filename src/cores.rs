@@ -1,18 +1,18 @@
-use std::str::FromStr;
+use std::{collections::HashMap, str::FromStr};
 
 use aleo_rust::{Identifier, Network, Plaintext, Record};
 use anyhow::anyhow;
 use serde::{Deserialize, Serialize};
 
-use crate::{utils::{
-    entry_to_plain, handle_addr_plaintext, handle_field_plaintext, handle_u8_plaintext,
-}};
+use crate::utils::{
+    entry_to_plain, handle_addr_plaintext, handle_u128_plaintext, handle_u8_plaintext,
+};
 
 #[derive(Clone, Copy, Debug, Serialize, Deserialize, PartialEq)]
 pub struct GameState(u128);
 
 impl GameState {
-    fn pretty(&self) -> String {
+    pub fn pretty(&self) -> String {
         // two bits per square
         let mut result = String::new();
         for i in 0..64 {
@@ -25,6 +25,38 @@ impl GameState {
             }
             if i % 8 == 7 {
                 result.push('\n');
+            }
+        }
+        result
+    }
+
+    pub fn raw(&self) -> u128 {
+        self.0
+    }
+
+    pub fn from_vec_i8(vec: &[i8]) -> Self {
+        let mut result = 0;
+        for i in 0..64 {
+            let square = match vec[i] {
+                0 => 0b00,
+                -1 => 0b01,
+                1 => 0b10,
+                _ => panic!("Invalid square value"),
+            };
+            result |= square << (2 * i);
+        }
+        GameState(result)
+    }
+
+    pub fn to_vec_i8(&self) -> Vec<i8> {
+        let mut result = Vec::new();
+        for i in 0..64 {
+            let square = (self.0 >> (2 * i)) & 0b11;
+            match square {
+                0b00 => result.push(0),
+                0b01 => result.push(-1),
+                0b10 => result.push(1),
+                _ => panic!("Invalid square value"),
             }
         }
         result
@@ -51,7 +83,7 @@ impl GameState {
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
 pub struct Vote {
     pub sender: String,
-    pub node_id: String,
+    pub node_id: u128,
     pub mov: u8,
 }
 
@@ -71,13 +103,13 @@ impl Vote {
 
         let (sender, node_id, mov) = (
             handle_addr_plaintext(entry_to_plain(sender_entry)?)?,
-            handle_field_plaintext(entry_to_plain(node_id_entry)?)?,
+            handle_u128_plaintext(entry_to_plain(node_id_entry)?)?,
             handle_u8_plaintext(entry_to_plain(mov_entry)?)?,
         );
 
         Ok(Self {
             sender: sender.to_string(),
-            node_id: node_id.to_string(),
+            node_id,
             mov,
         })
     }
@@ -85,41 +117,44 @@ impl Vote {
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
 pub struct GameNode {
-    pub node_id: String,
+    pub node_id: u128,
     pub state: GameState,
-    pub parent_id: String,
+    pub parent_id: u128,
     pub node_type: u8,
     pub game_status: u8,
+    pub valid_cnt: u32,
 
-    pub valid_mov_cnt: u8,
     pub votes: Vec<Vote>,
 }
 
 impl GameNode {
     pub fn add_vote(&mut self, vote: Vote) -> bool {
-        let vote_len = (self.votes.len() + 1) as u8;
-        if vote_len <= self.valid_mov_cnt / 2 {
+        let vote_len = (self.votes.len() + 1) as u32;
+        if vote_len <= self.valid_cnt / 2 {
             self.votes.push(vote);
         }
 
-        vote_len >= self.valid_mov_cnt / 2
+        vote_len >= self.valid_cnt / 2
     }
 }
 
 impl FromStr for GameNode {
     type Err = anyhow::Error;
     fn from_str(s: &str) -> Result<Self, Self::Err> {
-        //"{\n  node_id: 25939613864655546608765990709996941590field,\n  state: 7083711853891053158400u128,\n  parent_id: 6291506693248725078901406641668230701639003122863888065466938556813880264799field,\n  node_type: 0u8,\n  game_status: 0u8\n}"
         let s = s
             .replace("node_id: ", "\"node_id\": \"")
             .replace("state: ", "\"state\": \"")
             .replace("parent_id: ", "\"parent_id\": \"")
             .replace("node_type", "\"node_type\"")
             .replace("game_status", "\"game_status\"")
-            .replace("field", "field\"")
+            .replace("valid_cnt", "\"valid_cnt\"")
             .replace("u128", "\"")
+            .replace("u32", "")
             .replace("u8", "")
+            .replace("i8", "")
             .replace("\\n", ""); //TODO: use a better way to handle it
+
+        println!("s: {}", s);
 
         let game_node_value = serde_json::from_str::<serde_json::Value>(&s)?;
         let node_id = game_node_value["node_id"]
@@ -137,33 +172,125 @@ impl FromStr for GameNode {
         let game_status = game_node_value["game_status"]
             .as_u64()
             .ok_or(anyhow!("Invalid game_status"))?;
+        let valid_cnt = game_node_value["valid_cnt"]
+            .as_u64()
+            .ok_or(anyhow!("Invalid valid_cnt"))?;
 
-        // TODO: remove this mock
-        let mock_valid = 4;
         let votes = vec![];
 
         Ok(Self {
-            node_id: node_id.to_string(),
+            node_id: node_id.parse::<u128>()?,
             state: GameState(state.parse::<u128>()?),
-            parent_id: parent_id.to_string(),
+            parent_id: parent_id.parse::<u128>()?,
             node_type: node_type as u8,
             game_status: game_status as u8,
-            valid_mov_cnt: mock_valid,
+            valid_cnt: valid_cnt as u32,
             votes,
         })
     }
 }
 
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct RestResponse {
+    #[serde(rename = "id")]
+    pub node_id: u128,
+
+    #[serde(rename = "parentId")]
+    pub parent_id: Option<u128>,
+
+    #[serde(rename = "type")]
+    pub node_type: u8,
+
+    pub state: Vec<i8>,
+
+    #[serde(rename = "validMoves")]
+    pub valid_moves: Vec<u8>,
+
+    #[serde(rename = "result")]
+    pub game_status: i8,
+
+    #[serde(rename = "humanMove")]
+    pub human_move: Option<u8>,
+
+    #[serde(rename = "aiMove")]
+    pub ai_move: Option<u8>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct MovRequest {
+    #[serde(rename = "parentId")]
+    parent_id: u128,
+
+    votes: Vec<Votes>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct Votes {
+    #[serde(rename = "move")]
+    mov: u8,
+    addresses: Vec<String>,
+}
+
+impl MovRequest {
+    pub fn from_node(node: GameNode) -> MovRequest {
+        let mut votes_map = HashMap::new();
+
+        for (idx, v) in node.votes.iter().enumerate() {
+            if idx == 0 {
+                votes_map.insert(
+                    v.mov,
+                    Votes {
+                        mov: v.mov,
+                        addresses: vec![v.sender.clone()],
+                    },
+                );
+                continue;
+            }
+
+            match votes_map.get_mut(&v.mov) {
+                Some(votes) => {
+                    votes.addresses.push(v.sender.clone());
+                }
+                None => {
+                    votes_map.insert(
+                        v.mov,
+                        Votes {
+                            mov: v.mov,
+                            addresses: vec![v.sender.clone()],
+                        },
+                    );
+                }
+            }
+        }
+
+        Self {
+            parent_id: node.node_id,
+            votes: votes_map.values().cloned().collect(),
+        }
+    }
+}
+
 #[test]
 fn test_game_node_from_str() {
-    let game_node_str = "\"{\n  node_id: 25939613864655546608765990709996941590field,\n  state: 7083711853891053158400u128,\n  parent_id: 6291506693248725078901406641668230701639003122863888065466938556813880264799field,\n  node_type: 0u8,\n  game_status: 0u8\n}\"";
+    let game_node_str = "\"{\n  node_id: 1u128,\n  state: 7083711853891053158400u128,\n  parent_id: 0u128,\n  node_type: 0u8,\n  game_status: 0i8,\n  valid_cnt: 4u32\n}\"";
     let game_node_str = game_node_str.trim_matches('\"');
 
     let game_node = GameNode::from_str(game_node_str).unwrap();
 
-    let game_node_bin = bincode::serialize(&game_node).unwrap();
-    let new_game_node = bincode::deserialize::<GameNode>(&game_node_bin).unwrap();
-
-
     println!("{:?}", game_node);
+}
+
+#[test]
+fn test_game_state_from_vec_i8() {
+    let game_state_vec_i8 = vec![
+        0, 0, 0, 0, 0, 0, 0, 0, -1, 0, 0, 0, 0, 0, 0, 0, -1, 0, 1, 0, 0, 0, 0, 0, -1, 0, 1, 0, 0,
+        0, 0, 0, -1, 0, 1, 0, 0, 0, 0, 0, -1, 0, 1, 0, 0, 0, 0, 0, -1, 0, 1, 0, 0, 0, 0, 0, -1, 0,
+        1, 0, 0, 0, 0, 0,
+    ];
+
+    let game_state = GameState::from_vec_i8(&game_state_vec_i8);
+    let to_vec = game_state.to_vec_i8();
+    assert_eq!(game_state_vec_i8, to_vec);
+
+    println!("{}", game_state.pretty());
 }

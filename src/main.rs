@@ -12,9 +12,13 @@ use clap::Parser;
 use serde::{Deserialize, Serialize};
 use tower_http::cors::{Any, CorsLayer};
 #[derive(Debug, Parser)]
+#[clap(name = "mori-backend")]
 pub struct Cli {
     #[clap(long)]
     pub ai_dest: String,
+
+    #[clap(long)]
+    pub ai_token: String,
 
     #[clap(long)]
     pub aleo_rpc: String,
@@ -36,6 +40,7 @@ async fn main() {
     let cli = Cli::parse();
     let Cli {
         ai_dest,
+        ai_token,
         aleo_rpc,
         pk,
         port,
@@ -45,7 +50,8 @@ async fn main() {
     // Init Mori Aleo
     let pk = PrivateKey::<Testnet3>::from_str(&pk).expect("Invalid private key");
     let (tx, rx) = tokio::sync::mpsc::channel(100);
-    let mori = Mori::new(Some(aleo_rpc), pk, tx, ai_dest).expect("Failed to initialize Mori");
+    let mori =
+        Mori::new(Some(aleo_rpc), pk, tx, ai_dest, ai_token).expect("Failed to initialize Mori");
     // set from height
     mori.set_cur_height(from_height)
         .expect("Failed to set from height");
@@ -108,5 +114,5 @@ async fn open_game<N: Network>(
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct NodesResponse {
-    nodes: Vec<(String, GameNode)>,
+    nodes: Vec<(u128, GameNode)>,
 }

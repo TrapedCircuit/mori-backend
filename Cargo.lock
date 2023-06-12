@@ -31,7 +31,7 @@ dependencies = [
 [[package]]
 name = "aleo-rust"
 version = "0.4.2"
-source = "git+https://github.com/AleoHQ/aleo#f81ad4c80be2446ffb35156c2132523cdde765b0"
+source = "git+https://github.com/AleoHQ/aleo#9c4983ca840b85290e084ad3d957472b86900d41"
 dependencies = [
  "anyhow",
  "indexmap",

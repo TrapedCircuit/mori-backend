@@ -148,7 +148,6 @@ impl<K: Serialize + DeserializeOwned, V: Serialize + DeserializeOwned> DBMap<K, 
         Ok(())
     }
 
-
     pub fn get_all(&self) -> anyhow::Result<Vec<(K, V)>> {
         let mut result = Vec::new();
         let iter = self.inner.prefix_iterator(self.prefix.clone());

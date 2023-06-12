@@ -1,16 +1,17 @@
-use cores::{GameNode, Vote};
-use rand::Rng;
+use anyhow::anyhow;
+use cores::{GameNode, MovRequest, RestResponse, Vote};
 use snarkvm::synthesizer::Transition;
 use std::str::FromStr;
 use tokio::sync::mpsc::{Receiver, Sender};
-use utils::handle_field_plaintext;
 
 use aleo_rust::{
-    AleoAPIClient, Block, Ciphertext, Credits, Field, Network, Plaintext, PrivateKey, ProgramID,
+    AleoAPIClient, Block, Ciphertext, Credits, Network, Plaintext, PrivateKey, ProgramID,
     ProgramManager, Record, ViewKey,
 };
 use db::{DBMap, RocksDB};
 use filter::TransitionFilter;
+
+use crate::{cores::GameState, utils::handle_u128_plaintext};
 
 pub mod cores;
 pub mod db;
@@ -27,6 +28,7 @@ pub struct Mori<N: Network> {
     pub tx: Sender<Execution>,
 
     ai_dest: String,
+    ai_token: String,
     aleo_rpc: String,
 
     pk: PrivateKey<N>,
@@ -35,7 +37,7 @@ pub struct Mori<N: Network> {
 
     network_height: DBMap<String, u32>,
     unspent_records: DBMap<String, Record<N, Plaintext<N>>>, // for execution gas
-    mori_nodes: DBMap<String, GameNode>,                     // <node_id, node>
+    mori_nodes: DBMap<u128, GameNode>,                       // <node_id, node>
 }
 
 impl<N: Network> Mori<N> {
@@ -44,6 +46,7 @@ impl<N: Network> Mori<N> {
         pk: PrivateKey<N>,
         tx: Sender<Execution>,
         ai_dest: String,
+        ai_token: String,
     ) -> anyhow::Result<Self> {
         let aleo_rpc = aleo_rpc.unwrap_or("https://vm.aleo.org/api".to_string());
         let aleo_client = AleoAPIClient::new(&aleo_rpc, ALEO_NETWORK)?;
@@ -59,12 +62,15 @@ impl<N: Network> Mori<N> {
         let mori_nodes = RocksDB::open_map("mori_nodes")?;
         let network_height = RocksDB::open_map("network")?;
 
+        let ai_token = format!(" Bearar {}", ai_token);
+
         Ok(Self {
             pm,
             aleo_client,
             filter,
 
             ai_dest,
+            ai_token,
             aleo_rpc,
 
             tx,
@@ -113,36 +119,25 @@ impl<N: Network> Mori<N> {
     }
 
     pub fn execute_program(mut self, mut rx: Receiver<Execution>) -> anyhow::Result<()> {
-        // TODO: error handling
-        while let Some(exec) = rx.blocking_recv() {
+
+        let mut handler = move |exec| {
             tracing::warn!("received execution: {:?}", exec);
             let (function, inputs) = match exec {
-                Execution::MoveToNext(vote) => {
-                    let Vote {
-                        mov: _,
-                        sender: _,
-                        node_id,
-                    } = vote;
-                    let mut rng = rand::thread_rng();
-                    let new_node_id = Field::<N>::from_u128(rng.gen());
-                    // TODO: replace real get new state
-                    let mock_new_state: u128 = rng.gen();
-                    let mock_valid_pos: u32 = rng.gen_range(0..=3);
-                    let mock_game_status: u8 = rng.gen_range(0..=3);
-
+                Execution::MoveToNext(mov) => {
+                    let game_state = GameState::from_vec_i8(&mov.state);
+                    let parent_id = mov.parent_id.ok_or(anyhow!("no parent id"))?;
                     let inputs = vec![
-                        node_id.to_string(),
-                        new_node_id.to_string(),
-                        format!("{}u128", mock_new_state),
-                        format!("{}u32", mock_valid_pos),
-                        format!("{}u8", mock_game_status),
+                        format!("{}u128", parent_id),
+                        format!("{}u128", mov.node_id),
+                        format!("{}u128", game_state.raw()),
+                        format!("{}u32", mov.valid_moves.len()),
+                        format!("{}i8", mov.game_status),
                     ];
                     ("move_to_next", inputs)
                 }
                 Execution::OpenGame => {
-                    let mut rng = rand::thread_rng();
-                    let node_id = Field::<N>::from_u128(rng.gen());
-                    let inputs = vec![format!("{}field", node_id)];
+                    let node_id = self.open_game_remote()?.node_id;
+                    let inputs = vec![format!("{}u128", node_id)];
                     ("open_game", inputs)
                 }
             };
@@ -159,10 +154,15 @@ impl<N: Network> Mori<N> {
                 40000,
                 fee_record,
                 None,
-            );
-            match result {
-                Ok(result) => tracing::info!("move_to_next result: {:?}", result),
-                Err(e) => tracing::error!("move_to_next error: {:?}", e),
+            )?;
+
+            Ok::<String, anyhow::Error>(result)
+        };
+
+        while let Some(exec) = rx.blocking_recv() {
+            match handler(exec) {
+                Ok(resp) => tracing::info!("execution result: {:?}", resp),
+                Err(e) => tracing::error!("execution error: {:?}", e),
             }
         }
 
@@ -196,7 +196,7 @@ impl<N: Network> Mori<N> {
         });
         // handle out
         for (commit, record) in block.clone().into_records() {
-            if record.is_owner(&self.vk) == false {
+            if !record.is_owner(&self.vk) {
                 continue;
             }
             let sn = Record::<N, Ciphertext<N>>::serial_number(self.pk, commit)?;
@@ -223,10 +223,13 @@ impl<N: Network> Mori<N> {
 
                     let node = self.mori_nodes.get(&vote.node_id)?;
                     if let Some(node) = node {
-                        let node_id = node.node_id.clone();
+                        let node_id = node.node_id;
                         let mut node = node;
                         if node.add_vote(vote.clone()) {
-                            self.tx.blocking_send(Execution::MoveToNext(vote))?;
+                            let movs = self.move_to_next_remote(vote.node_id)?;
+                            for mov in movs {
+                                self.tx.blocking_send(Execution::MoveToNext(mov))?;
+                            }
                         }
 
                         self.mori_nodes.insert(&node_id, &node)?;
@@ -241,13 +244,11 @@ impl<N: Network> Mori<N> {
         if let Some(finalizes) = t.finalize() {
             let node_id_final = finalizes.iter().next();
             tracing::info!("Got a new open game transition: {:?}", node_id_final);
-            if let Some(node_id_value) = node_id_final {
-                if let aleo_rust::Value::Plaintext(node_id) = node_id_value {
-                    let node_id = handle_field_plaintext(node_id)?;
-                    let node = self.get_remote_node(node_id.to_string())?;
-                    tracing::info!("Got a new open game node: {:?}", node);
-                    self.mori_nodes.insert(&node_id.to_string(), &node)?;
-                }
+            if let Some(aleo_rust::Value::Plaintext(node_id)) = node_id_final {
+                let node_id = handle_u128_plaintext(node_id)?;
+                let node = self.get_remote_node(node_id)?;
+                tracing::info!("Got a new open game node: {:?}", node);
+                self.mori_nodes.insert(&node_id, &node)?;
             }
         }
 
@@ -258,20 +259,18 @@ impl<N: Network> Mori<N> {
         if let Some(finalizes) = t.finalize() {
             let node_id_final = finalizes.get(1);
             tracing::info!("Got a new move transition: {:?}", node_id_final);
-            if let Some(node_id_value) = node_id_final {
-                if let aleo_rust::Value::Plaintext(node_id) = node_id_value {
-                    let node_id = handle_field_plaintext(node_id)?;
-                    let node = self.get_remote_node(node_id.to_string())?;
-                    tracing::info!("Got a new move node: {:?}", node);
-                    self.mori_nodes.insert(&node_id.to_string(), &node)?;
-                }
+            if let Some(aleo_rust::Value::Plaintext(node_id)) = node_id_final {
+                let node_id = handle_u128_plaintext(node_id)?;
+                let node = self.get_remote_node(node_id)?;
+                tracing::info!("Got a new move node: {:?}", node);
+                self.mori_nodes.insert(&node_id, &node)?;
             }
         }
 
         Ok(())
     }
 
-    pub fn get_remote_node(&self, node_id: String) -> anyhow::Result<GameNode> {
+    pub fn get_remote_node(&self, node_id: u128) -> anyhow::Result<GameNode> {
         let path = format!("{}/testnet3/mori/node/{}", self.aleo_rpc, node_id);
         let resp = ureq::get(&path).call()?.into_string()?;
         let node_str = resp.trim_matches('\"');
@@ -279,7 +278,32 @@ impl<N: Network> Mori<N> {
         Ok(node)
     }
 
-    pub fn get_all_nodes(&self) -> anyhow::Result<Vec<(String, GameNode)>> {
+    pub fn open_game_remote(&self) -> anyhow::Result<RestResponse> {
+        let dest = format!("{}/api/nodes", self.ai_dest);
+        let node_resp = ureq::post(&dest)
+            .set("Authorization", &self.ai_token)
+            .call()?
+            .into_json()?;
+        Ok(node_resp)
+    }
+
+    pub fn move_to_next_remote(&self, node_id: u128) -> anyhow::Result<Vec<RestResponse>> {
+        let dest = format!("{}/api/nodes", self.ai_dest);
+        let node = self.mori_nodes.get(&node_id)?;
+        let node = node.ok_or(anyhow::anyhow!("node not found"))?;
+        let req = MovRequest::from_node(node);
+
+        let resp = ureq::post(&dest)
+            .set("Authorization", &self.ai_token)
+            .send_json(ureq::json!(req))?
+            .into_json()?;
+
+        // TODO: handle mov 64
+
+        Ok(resp)
+    }
+
+    pub fn get_all_nodes(&self) -> anyhow::Result<Vec<(u128, GameNode)>> {
         let nodes = self.mori_nodes.get_all()?;
         Ok(nodes)
     }
@@ -301,6 +325,6 @@ impl<N: Network> Mori<N> {
 
 #[derive(Debug, Clone)]
 pub enum Execution {
-    MoveToNext(Vote),
+    MoveToNext(RestResponse),
     OpenGame,
 }

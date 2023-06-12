@@ -19,6 +19,14 @@ pub fn handle_u8_plaintext<N: Network>(plaintext: &Plaintext<N>) -> anyhow::Resu
     }
 }
 
+pub fn handle_u128_plaintext<N: Network>(plaintext: &Plaintext<N>) -> anyhow::Result<u128> {
+    if let Plaintext::Literal(Literal::U128(v), _) = plaintext {
+        Ok(*v.deref())
+    } else {
+        anyhow::bail!("invalid u128 plaintext")
+    }
+}
+
 pub fn handle_field_plaintext<N: Network>(plaintext: &Plaintext<N>) -> anyhow::Result<Field<N>> {
     if let Plaintext::Literal(Literal::Field(v), _) = plaintext {
         Ok(*v)

@@ -39,7 +39,7 @@ impl<N: Network> TransitionFilter<N> {
                 let program_id = t.program_id();
                 // let function_name = t.function_name().to_string();
                 self.program_ids.contains(program_id)
-                    // && self.function_names.contains(&function_name)
+                // && self.function_names.contains(&function_name)
             })
             .collect()
     }
