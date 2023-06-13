@@ -167,9 +167,9 @@ impl<N: Network> Mori<N> {
         };
 
         while let Some(exec) = rx.blocking_recv() {
-            match handler(exec) {
+            match handler(exec.clone()) {
                 Ok(resp) => tracing::info!("execution result: {:?}", resp),
-                Err(e) => tracing::error!("execution error: {:?}", e),
+                Err(e) => tracing::error!("execution {exec:?} error: {:?}", e),
             }
         }
 

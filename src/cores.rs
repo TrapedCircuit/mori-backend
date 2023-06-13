@@ -142,8 +142,17 @@ impl GameNode {
 
         (vote_len >= self.valid_cnt / 2) && self.game_status == 0 && self.node_type == 0
     }
+
     pub fn update_valid_movs(&mut self, movs: Vec<u8>) {
         self.valid_movs = movs;
+    }
+
+    pub fn is_root(&self) -> bool {
+        self.parent_id == 0
+    }
+
+    pub fn is_leaf(&self) -> bool {
+        self.node_type == 0
     }
 }
 
