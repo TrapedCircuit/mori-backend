@@ -39,8 +39,8 @@ impl GameState {
         for i in 0..64 {
             let square = match vec[i] {
                 0 => 0b00,
-                -1 => 0b10,
                 1 => 0b01,
+                -1 => 0b10,
                 _ => panic!("Invalid square value"),
             };
             result |= square << (2 * i);
@@ -54,8 +54,8 @@ impl GameState {
             let square = (self.0 >> (2 * i)) & 0b11;
             match square {
                 0b00 => result.push(0),
-                0b01 => result.push(-1),
-                0b10 => result.push(1),
+                0b01 => result.push(1),
+                0b10 => result.push(-1),
                 _ => panic!("Invalid square value"),
             }
         }
