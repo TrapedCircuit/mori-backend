@@ -19,7 +19,7 @@ pub mod filter;
 pub mod utils;
 
 pub const ALEO_NETWORK: &str = "testnet3";
-pub const ALEO_CONTRACT: &str = "mori.aleo";
+pub const ALEO_CONTRACT: &str = "mori_test2.aleo";
 
 #[derive(Clone)]
 pub struct Mori<N: Network> {
@@ -56,7 +56,7 @@ impl<N: Network> Mori<N> {
 
         let vk = ViewKey::try_from(&pk)?;
         let pm = ProgramManager::new(Some(pk), None, Some(aleo_client.clone()), None)?;
-        let filter = TransitionFilter::new().add_program(ProgramID::from_str("mori.aleo")?);
+        let filter = TransitionFilter::new().add_program(ProgramID::from_str(ALEO_CONTRACT)?);
 
         let unspent_records: DBMap<String, Record<N, Plaintext<N>>> =
             RocksDB::open_map("unspent_records")?;
