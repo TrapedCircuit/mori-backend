@@ -21,7 +21,7 @@ pub struct Cli {
     pub ai_token: String,
 
     #[clap(long)]
-    pub aleo_rpc: String,
+    pub aleo_rpc: Option<String>,
 
     #[clap(long)]
     pub pk: String,
@@ -50,8 +50,7 @@ async fn main() {
     // Init Mori Aleo
     let pk = PrivateKey::<Testnet3>::from_str(&pk).expect("Invalid private key");
     let (tx, rx) = tokio::sync::mpsc::channel(100);
-    let mori =
-        Mori::new(Some(aleo_rpc), pk, tx, ai_dest, ai_token).expect("Failed to initialize Mori");
+    let mori = Mori::new(aleo_rpc, pk, tx, ai_dest, ai_token).expect("Failed to initialize Mori");
     // set from height
     mori.set_cur_height(from_height)
         .expect("Failed to set from height");

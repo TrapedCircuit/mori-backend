@@ -180,9 +180,9 @@ impl<K: Serialize + DeserializeOwned, V: Serialize + DeserializeOwned> DBMap<K, 
     }
 
     pub fn pop_front(&self) -> anyhow::Result<Option<(K, V)>> {
-        let mut iter = self.inner.prefix_iterator(self.prefix.clone());
+        let iter = self.inner.prefix_iterator(self.prefix.clone());
 
-        while let Some(item) = iter.next() {
+        for item in iter {
             let (key, value) = item?;
             if key.starts_with(&self.prefix) {
                 let key = &key[self.prefix.len()..];

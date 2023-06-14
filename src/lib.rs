@@ -234,7 +234,7 @@ impl<N: Network> Mori<N> {
                         let node_id = node.node_id;
                         let mut node = node;
 
-                        if node.check_and_add_vote(vote.clone()) {
+                        if node.check_and_add_vote(vote) {
                             let movs = self.move_to_next_remote(node.clone())?;
                             for mov in movs {
                                 self.tx.blocking_send(Execution::MoveToNext(mov))?;
@@ -255,7 +255,10 @@ impl<N: Network> Mori<N> {
             if let Some(aleo_rust::Value::Plaintext(node_id)) = node_id_final {
                 let node_id = handle_u128_plaintext(node_id)?;
                 let node = self.get_remote_node(node_id)?;
-                tracing::info!("Got a new open game id {node_id} node: {}", node.state.pretty());
+                tracing::info!(
+                    "Got a new open game id {node_id} node: {}",
+                    node.state.pretty()
+                );
                 self.mori_nodes.insert(&node_id, &node)?;
             }
         }
