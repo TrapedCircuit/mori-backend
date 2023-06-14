@@ -256,7 +256,7 @@ impl<N: Network> Mori<N> {
                 let node_id = handle_u128_plaintext(node_id)?;
                 let node = self.get_remote_node(node_id)?;
                 tracing::info!(
-                    "Got a new open game id {node_id} node: {}",
+                    "Got a new open game id {node_id} node:\n {}",
                     node.state.pretty()
                 );
                 self.mori_nodes.insert(&node_id, &node)?;
@@ -275,7 +275,7 @@ impl<N: Network> Mori<N> {
             if let Some(aleo_rust::Value::Plaintext(node_id)) = node_id_final {
                 let node_id = handle_u128_plaintext(node_id)?;
                 let node = self.get_remote_node(node_id)?;
-                tracing::info!("Got a new move id {node_id} node: {}", node.state.pretty());
+                tracing::info!("Got a new move id {node_id} node:\n {}", node.state.pretty());
                 self.mori_nodes.insert(&node_id, &node)?;
             }
             // update parent_id
