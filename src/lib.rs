@@ -20,6 +20,7 @@ pub mod utils;
 
 pub const ALEO_NETWORK: &str = "testnet3";
 pub const ALEO_CONTRACT: &str = "mori_test2.aleo";
+pub const FEE_NUM: u64 = 40000; // 0.04 aleo
 
 #[derive(Clone)]
 pub struct Mori<N: Network> {
@@ -154,14 +155,16 @@ impl<N: Network> Mori<N> {
                 .pop_front()?
                 .ok_or(anyhow::anyhow!("no unspent record for execution gas"))?;
 
+            // TODO: if need to handle different execution error
             let result = self.pm.execute_program(
                 ALEO_CONTRACT,
                 function,
                 inputs.iter(),
-                40000,
+                FEE_NUM,
                 fee_record,
                 None,
             )?;
+
 
             Ok::<String, anyhow::Error>(result)
         };
@@ -209,7 +212,7 @@ impl<N: Network> Mori<N> {
             let sn = Record::<N, Ciphertext<N>>::serial_number(self.pk, commit)?;
             let record = record.decrypt(&self.vk)?;
             if let Ok(credits) = record.microcredits() {
-                if credits > 40000 {
+                if credits >= FEE_NUM {
                     tracing::info!("got a new record {:?}", record);
                     self.unspent_records.insert(&sn.to_string(), &record)?;
                 }
