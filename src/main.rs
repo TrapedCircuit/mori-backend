@@ -10,6 +10,7 @@ use backend::Execution;
 use backend::{cores::GameNode, Mori};
 use clap::Parser;
 use serde::{Deserialize, Serialize};
+use snarkvm::circuit::AleoV0;
 use tower_http::cors::{Any, CorsLayer};
 #[derive(Debug, Parser)]
 #[clap(name = "mori-backend")]
@@ -54,7 +55,7 @@ async fn main() {
     // set from height
     mori.set_cur_height(from_height)
         .expect("Failed to set from height");
-    let mori = mori.initial(rx);
+    let mori = mori.initial::<AleoV0>(rx);
 
     // Init Mori Rest
     let cors = CorsLayer::new()

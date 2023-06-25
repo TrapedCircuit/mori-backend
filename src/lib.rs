@@ -1,6 +1,6 @@
 use anyhow::anyhow;
 use cores::{GameNode, MovRequest, RestResponse, Vote};
-use snarkvm::synthesizer::Transition;
+use snarkvm::{synthesizer::Transition, circuit::Aleo};
 use std::str::FromStr;
 use tokio::sync::mpsc::{Receiver, Sender};
 
@@ -127,7 +127,7 @@ impl<N: Network> Mori<N> {
         Ok(())
     }
 
-    pub fn execute_program(mut self, mut rx: Receiver<Execution>) -> anyhow::Result<()> {
+    pub fn execute_program<A: Aleo<Network = N>>(mut self, mut rx: Receiver<Execution>) -> anyhow::Result<()> {
         let mut handler = move |exec| {
             tracing::warn!("received execution: {:?}", exec);
             let (function, inputs) = match exec {
@@ -156,7 +156,7 @@ impl<N: Network> Mori<N> {
                 .ok_or(anyhow::anyhow!("no unspent record for execution gas"))?;
 
             // TODO: if need to handle different execution error
-            let result = self.pm.execute_program(
+            let result = self.pm.execute_program::<A>(
                 ALEO_CONTRACT,
                 function,
                 inputs.iter(),
@@ -179,10 +179,10 @@ impl<N: Network> Mori<N> {
         anyhow::bail!("mori move channel closed")
     }
 
-    pub fn initial(self, rx: Receiver<Execution>) -> Self {
+    pub fn initial<A: Aleo<Network = N>>(self, rx: Receiver<Execution>) -> Self {
         let self_clone = self.clone();
         std::thread::spawn(move || {
-            if let Err(e) = self_clone.execute_program(rx) {
+            if let Err(e) = self_clone.execute_program::<A>(rx) {
                 tracing::error!("execute program error: {:?}", e);
             }
         });
