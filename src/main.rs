@@ -10,7 +10,6 @@ use backend::Execution;
 use backend::{cores::GameNode, Mori};
 use clap::Parser;
 use serde::{Deserialize, Serialize};
-use snarkvm::circuit::AleoV0;
 use tower_http::cors::{Any, CorsLayer};
 #[derive(Debug, Parser)]
 #[clap(name = "mori-backend")]
@@ -32,6 +31,9 @@ pub struct Cli {
 
     #[clap(long, default_value = "0")]
     pub from_height: u32,
+
+    #[clap(long, default_value = "mori.aleo")]
+    pub program_name: String,
 }
 
 #[tokio::main]
@@ -46,16 +48,18 @@ async fn main() {
         pk,
         port,
         from_height,
+        program_name,
     } = cli;
 
     // Init Mori Aleo
     let pk = PrivateKey::<Testnet3>::from_str(&pk).expect("Invalid private key");
     let (tx, rx) = tokio::sync::mpsc::channel(100);
-    let mori = Mori::new(aleo_rpc, pk, tx, ai_dest, ai_token).expect("Failed to initialize Mori");
+    let mori = Mori::new(aleo_rpc, pk, tx, program_name, ai_dest, ai_token)
+        .expect("Failed to initialize Mori");
     // set from height
     mori.set_cur_height(from_height)
         .expect("Failed to set from height");
-    let mori = mori.initial::<AleoV0>(rx);
+    let mori = mori.initial(rx);
 
     // Init Mori Rest
     let cors = CorsLayer::new()

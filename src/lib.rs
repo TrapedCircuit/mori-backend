@@ -1,6 +1,7 @@
 use anyhow::anyhow;
 use cores::{GameNode, MovRequest, RestResponse, Vote};
-use snarkvm::{synthesizer::Transition, circuit::Aleo};
+use once_cell::sync::OnceCell;
+use snarkvm::synthesizer::Transition;
 use std::str::FromStr;
 use tokio::sync::mpsc::{Receiver, Sender};
 
@@ -19,7 +20,7 @@ pub mod filter;
 pub mod utils;
 
 pub const ALEO_NETWORK: &str = "testnet3";
-pub const ALEO_CONTRACT: &str = "mori_test2.aleo";
+static ALEO_CONTRACT: OnceCell<String> = OnceCell::new();
 pub const FEE_NUM: u64 = 40000; // 0.04 aleo
 
 #[derive(Clone)]
@@ -47,6 +48,7 @@ impl<N: Network> Mori<N> {
         aleo_rpc: Option<String>,
         pk: PrivateKey<N>,
         tx: Sender<Execution>,
+        program_name: String,
         ai_dest: String,
         ai_token: String,
     ) -> anyhow::Result<Self> {
@@ -55,9 +57,13 @@ impl<N: Network> Mori<N> {
         let network_key = format!("{}-{}", aleo_rpc, pk);
         tracing::info!("your private key is: {pk}, network key is {network_key}");
 
+        tracing::info!("program name is {program_name}");
+        ALEO_CONTRACT.set(program_name).map_err(|e| anyhow!(e))?;
+
         let vk = ViewKey::try_from(&pk)?;
         let pm = ProgramManager::new(Some(pk), None, Some(aleo_client.clone()), None)?;
-        let filter = TransitionFilter::new().add_program(ProgramID::from_str(ALEO_CONTRACT)?);
+        let filter =
+            TransitionFilter::new().add_program(ProgramID::from_str(ALEO_CONTRACT.get().unwrap())?);
 
         let unspent_records: DBMap<String, Record<N, Plaintext<N>>> =
             RocksDB::open_map("unspent_records")?;
@@ -127,7 +133,7 @@ impl<N: Network> Mori<N> {
         Ok(())
     }
 
-    pub fn execute_program<A: Aleo<Network = N>>(mut self, mut rx: Receiver<Execution>) -> anyhow::Result<()> {
+    pub fn execute_program(mut self, mut rx: Receiver<Execution>) -> anyhow::Result<()> {
         let mut handler = move |exec| {
             tracing::warn!("received execution: {:?}", exec);
             let (function, inputs) = match exec {
@@ -150,23 +156,29 @@ impl<N: Network> Mori<N> {
                 }
             };
 
-            let (_, fee_record) = self
+            let (rid, fee_record) = self
                 .unspent_records
                 .pop_front()?
                 .ok_or(anyhow::anyhow!("no unspent record for execution gas"))?;
 
-            // TODO: if need to handle different execution error
-            let result = self.pm.execute_program::<A>(
-                ALEO_CONTRACT,
+            let result = self.pm.execute_program(
+                ALEO_CONTRACT.get().unwrap(),
                 function,
                 inputs.iter(),
                 FEE_NUM,
-                fee_record,
+                fee_record.clone(),
                 None,
-            )?;
+            );
 
+            if let Err(e) = &result {
+                if !e.to_string().contains("already exists in the ledger")
+                    && !e.to_string().contains("Fee record does not have enough")
+                {
+                    self.unspent_records.insert(&rid, &fee_record)?;
+                }
+            }
 
-            Ok::<String, anyhow::Error>(result)
+            result
         };
 
         while let Some(exec) = rx.blocking_recv() {
@@ -179,10 +191,10 @@ impl<N: Network> Mori<N> {
         anyhow::bail!("mori move channel closed")
     }
 
-    pub fn initial<A: Aleo<Network = N>>(self, rx: Receiver<Execution>) -> Self {
+    pub fn initial(self, rx: Receiver<Execution>) -> Self {
         let self_clone = self.clone();
         std::thread::spawn(move || {
-            if let Err(e) = self_clone.execute_program::<A>(rx) {
+            if let Err(e) = self_clone.execute_program(rx) {
                 tracing::error!("execute program error: {:?}", e);
             }
         });
@@ -278,7 +290,10 @@ impl<N: Network> Mori<N> {
             if let Some(aleo_rust::Value::Plaintext(node_id)) = node_id_final {
                 let node_id = handle_u128_plaintext(node_id)?;
                 let node = self.get_remote_node(node_id)?;
-                tracing::info!("Got a new move id {node_id} node:\n {}", node.state.pretty());
+                tracing::info!(
+                    "Got a new move id {node_id} node:\n {}",
+                    node.state.pretty()
+                );
                 self.mori_nodes.insert(&node_id, &node)?;
             }
             // update parent_id
@@ -298,7 +313,12 @@ impl<N: Network> Mori<N> {
     }
 
     pub fn get_remote_node(&self, node_id: u128) -> anyhow::Result<GameNode> {
-        let path = format!("{}/testnet3/mori/node/{}", self.aleo_rpc, node_id);
+        let path = format!(
+            "{}/testnet3/program/{}/mapping/nodes/{}",
+            self.aleo_rpc,
+            ALEO_CONTRACT.get().unwrap(),
+            node_id
+        );
         let ai_path = format!("{}/api/nodes/{}", self.ai_dest, node_id);
         let resp = ureq::get(&path).call()?.into_string()?;
         let ai_resp = ureq::get(&ai_path)
@@ -368,7 +388,6 @@ impl<N: Network> Mori<N> {
     }
 
     pub fn set_cur_height(&self, height: u32) -> anyhow::Result<()> {
-        // TODO
         let cur = self.network_height.get(&self.network_key)?.unwrap_or(0);
         if height > cur {
             self.network_height.insert(&self.network_key, &height)?;
