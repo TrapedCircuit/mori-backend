@@ -1,5 +1,5 @@
 use aleo_rust::{Block, Network, ProgramID};
-use snarkvm::synthesizer::Transition;
+use snarkvm::prelude::Transition;
 
 #[derive(Clone, Debug)]
 pub struct TransitionFilter<N: Network> {

@@ -1,7 +1,7 @@
 use anyhow::anyhow;
 use cores::{GameNode, MovRequest, RestResponse, Vote};
 use once_cell::sync::OnceCell;
-use snarkvm::synthesizer::Transition;
+use snarkvm::prelude::Transition;
 use std::str::FromStr;
 use tokio::sync::mpsc::{Receiver, Sender};
 
@@ -268,7 +268,7 @@ impl<N: Network> Mori<N> {
             let node_id_final = finalizes.iter().next();
             tracing::info!("Got a new open game transition: {:?}", node_id_final);
             if let Some(aleo_rust::Value::Plaintext(node_id)) = node_id_final {
-                let node_id = handle_u128_plaintext(node_id)?;
+                let node_id = handle_u128_plaintext(&node_id)?;
                 let node = self.get_remote_node(node_id)?;
                 tracing::info!(
                     "Got a new open game id {node_id} node:\n {}",
@@ -288,7 +288,7 @@ impl<N: Network> Mori<N> {
             tracing::info!("Got a new move transition: {:?}", node_id_final);
             // update new_node_id
             if let Some(aleo_rust::Value::Plaintext(node_id)) = node_id_final {
-                let node_id = handle_u128_plaintext(node_id)?;
+                let node_id = handle_u128_plaintext(&node_id)?;
                 let node = self.get_remote_node(node_id)?;
                 tracing::info!(
                     "Got a new move id {node_id} node:\n {}",
@@ -298,7 +298,7 @@ impl<N: Network> Mori<N> {
             }
             // update parent_id
             if let Some(aleo_rust::Value::Plaintext(parent_id)) = parent_id_final {
-                let parent_id = handle_u128_plaintext(parent_id)?;
+                let parent_id = handle_u128_plaintext(&parent_id)?;
                 let node = self.mori_nodes.get(&parent_id)?;
                 if let Some(node) = node {
                     let mut node = node;
