@@ -5,7 +5,8 @@ use anyhow::anyhow;
 use serde::{Deserialize, Serialize};
 
 use crate::utils::{
-    entry_to_plain, handle_addr_plaintext, handle_u128_plaintext, handle_u8_plaintext,
+    entry_to_plain, handle_addr_plaintext, handle_from_plaintext, handle_i8_plaintext,
+    handle_u128_plaintext, handle_u8_plaintext,
 };
 
 #[derive(Clone, Copy, Debug, Serialize, Deserialize, PartialEq)]
@@ -119,13 +120,17 @@ impl Vote {
 pub struct GameNode {
     pub node_id: u128,
     pub state: GameState,
-    pub parent_id: u128,
-    pub node_type: u8,
-    pub game_status: u8,
-    pub valid_cnt: u32,
+    pub from: NodeEdge,
+    pub game_status: i8,
 
     pub valid_movs: Vec<u8>,
     pub votes: Vec<Vote>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+pub struct NodeEdge {
+    pub node_id: u128,
+    pub mov: u8,
 }
 
 impl GameNode {
@@ -134,13 +139,8 @@ impl GameNode {
         if !self.valid_movs.contains(&vote.mov) {
             return false;
         }
-        // check vote len
-        let vote_len = (self.votes.len() + 1) as u32;
-        if vote_len <= self.valid_cnt / 2 {
-            self.votes.push(vote);
-        }
-
-        (vote_len >= self.valid_cnt / 2) && self.game_status == 0 && self.node_type == 0
+        self.votes.push(vote);
+        self.game_status == 0
     }
 
     pub fn update_valid_movs(&mut self, movs: Vec<u8>) {
@@ -148,65 +148,42 @@ impl GameNode {
     }
 
     pub fn is_root(&self) -> bool {
-        self.parent_id == 0
+        self.from.node_id == 0
     }
 
-    pub fn is_leaf(&self) -> bool {
-        self.node_type == 0
-    }
-}
+    pub fn from_plaintext<N: Network>(p: &Plaintext<N>) -> anyhow::Result<Self> {
+        let (node_id_ident, state_ident, from_ident, game_status_ident) = (
+            Identifier::from_str("node_id")?,
+            Identifier::from_str("state")?,
+            Identifier::from_str("from")?,
+            Identifier::from_str("game_status")?,
+        );
+        const ERR: &str = "Invalid record";
+        if let Plaintext::Struct(s, _) = p {
+            let (node_id_entry, state_entry, from_entry, game_status_entry) = (
+                s.get(&node_id_ident).ok_or(anyhow!(ERR))?,
+                s.get(&state_ident).ok_or(anyhow!(ERR))?,
+                s.get(&from_ident).ok_or(anyhow!(ERR))?,
+                s.get(&game_status_ident).ok_or(anyhow!(ERR))?,
+            );
 
-impl FromStr for GameNode {
-    type Err = anyhow::Error;
-    fn from_str(s: &str) -> Result<Self, Self::Err> {
-        let s = s
-            .replace("node_id: ", "\"node_id\": \"")
-            .replace("state: ", "\"state\": \"")
-            .replace("parent_id: ", "\"parent_id\": \"")
-            .replace("node_type", "\"node_type\"")
-            .replace("game_status", "\"game_status\"")
-            .replace("valid_cnt", "\"valid_cnt\"")
-            .replace("u128", "\"")
-            .replace("u32", "")
-            .replace("u8", "")
-            .replace("i8", "")
-            .replace("\\n", ""); //TODO: use a better way to handle it
-
-        println!("s: {}", s);
-
-        let game_node_value = serde_json::from_str::<serde_json::Value>(&s)?;
-        let node_id = game_node_value["node_id"]
-            .as_str()
-            .ok_or(anyhow!("Invalid node_id"))?;
-        let state = game_node_value["state"]
-            .as_str()
-            .ok_or(anyhow!("Invalid state"))?;
-        let parent_id = game_node_value["parent_id"]
-            .as_str()
-            .ok_or(anyhow!("Invalid parent_id"))?;
-        let node_type = game_node_value["node_type"]
-            .as_u64()
-            .ok_or(anyhow!("Invalid node_type"))?;
-        let game_status = game_node_value["game_status"]
-            .as_u64()
-            .ok_or(anyhow!("Invalid game_status"))?;
-        let valid_cnt = game_node_value["valid_cnt"]
-            .as_u64()
-            .ok_or(anyhow!("Invalid valid_cnt"))?;
-
-        let votes = vec![];
-        let valid_movs = vec![];
-
-        Ok(Self {
-            node_id: node_id.parse::<u128>()?,
-            state: GameState(state.parse::<u128>()?),
-            parent_id: parent_id.parse::<u128>()?,
-            node_type: node_type as u8,
-            game_status: game_status as u8,
-            valid_cnt: valid_cnt as u32,
-            valid_movs,
-            votes,
-        })
+            let (node_id, state, from, game_status) = (
+                handle_u128_plaintext(node_id_entry)?,
+                handle_u128_plaintext(state_entry)?,
+                handle_from_plaintext(from_entry)?,
+                handle_i8_plaintext(game_status_entry)?,
+            );
+            Ok(Self {
+                node_id,
+                state: GameState(state),
+                from,
+                game_status,
+                valid_movs: vec![],
+                votes: vec![],
+            })
+        } else {
+            anyhow::bail!("Invalid record")
+        }
     }
 }
 
@@ -309,16 +286,6 @@ impl MovRequest {
 }
 
 #[test]
-fn test_game_node_from_str() {
-    let game_node_str = "\"{\n  node_id: 1u128,\n  state: 7083711853891053158400u128,\n  parent_id: 0u128,\n  node_type: 0u8,\n  game_status: 0i8,\n  valid_cnt: 4u32\n}\"";
-    let game_node_str = game_node_str.trim_matches('\"');
-
-    let game_node = GameNode::from_str(game_node_str).unwrap();
-
-    println!("{:?}", game_node);
-}
-
-#[test]
 fn test_game_state_from_vec_i8() {
     let game_state_vec_i8 = vec![
         0, 0, 0, 0, 0, 0, 0, 0, -1, 0, 0, 0, 0, 0, 0, 0, -1, 0, 1, 0, 0, 0, 0, 0, -1, 0, 1, 0, 0,
@@ -341,30 +308,4 @@ fn test_game_state_pretty() {
     println!("{}", game_state.pretty());
     let game_state = GameState(6198295159950758903808);
     println!("{}", game_state.pretty());
-}
-
-#[test]
-fn test_game_node_to_req() {
-    let game_node_str = "\"{\n  node_id: 1u128,\n  state: 7083711853891053158400u128,\n  parent_id: 0u128,\n  node_type: 0u8,\n  game_status: 0i8,\n  valid_cnt: 4u32\n}\"";
-    let game_node_str = game_node_str.trim_matches('\"');
-
-    let mut game_node = GameNode::from_str(game_node_str).unwrap();
-
-    let vote1 = Vote {
-        mov: 26,
-        sender: "0x123".to_string(),
-        node_id: 1,
-    };
-
-    let vote2 = Vote {
-        mov: 19,
-        sender: "0x456".to_string(),
-        node_id: 1,
-    };
-
-    game_node.check_and_add_vote(vote1);
-    game_node.check_and_add_vote(vote2);
-
-    let mov_req = MovRequest::from_node(game_node);
-    println!("{:?}", mov_req);
 }

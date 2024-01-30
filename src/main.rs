@@ -78,10 +78,12 @@ async fn main() {
         .layer(cors);
 
     let addr = SocketAddr::from(([0, 0, 0, 0], port));
-    axum::Server::bind(&addr)
-        .serve(router.into_make_service())
+    let listener = tokio::net::TcpListener::bind(addr)
         .await
-        .expect("Failed to start rest server");
+        .expect("Failed to bind");
+    axum::serve(listener, router.into_make_service())
+        .await
+        .expect("Failed to serve");
 }
 
 async fn list_nodes<N: Network>(

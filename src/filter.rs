@@ -1,5 +1,5 @@
 use aleo_rust::{Block, Network, ProgramID};
-use snarkvm::prelude::Transition;
+use snarkvm_ledger::Transition;
 
 #[derive(Clone, Debug)]
 pub struct TransitionFilter<N: Network> {
@@ -33,13 +33,11 @@ impl<N: Network> TransitionFilter<N> {
             .filter(|tx| tx.is_accepted())
             .flat_map(|tx| tx.into_transaction().into_transitions())
             .collect::<Vec<Transition<N>>>();
-        // TODO: change filter logic
+
         ts.into_iter()
             .filter(|t| {
                 let program_id = t.program_id();
-                // let function_name = t.function_name().to_string();
                 self.program_ids.contains(program_id)
-                // && self.function_names.contains(&function_name)
             })
             .collect()
     }
